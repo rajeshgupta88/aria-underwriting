@@ -85,6 +85,19 @@ _SAMPLE_SUBMISSIONS = [
     },
     {
         "submission_id": "SUB-2024-0005",
+        "acord_fields": {"policy_type": "BOP", "years_in_business": 3},
+        "pc_account_id": "PC-10005",
+        "sic_code": "7389",
+        "sic_description": "Services - miscellaneous business services",
+        "sic_confidence": 0.82,       # ambiguous SIC + confidence < 0.90 → HITLRequired
+        "writing_state": "IL",
+        "premises_zip": "60601",
+        "tiv": None,
+        "named_insured": "Apex Business Services LLC",
+        "created_at": "2024-03-05T08:45:00+00:00",
+    },
+    {
+        "submission_id": "SUB-2024-0006",
         "acord_fields": {"policy_type": "CPP", "years_in_business": 22},
         "pc_account_id": "PC-10005",
         "sic_code": "1521",

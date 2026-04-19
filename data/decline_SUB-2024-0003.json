@@ -1,0 +1,14 @@
+{
+  "submission_id": "SUB-2024-0003",
+  "named_insured": "Harbor View Lounge LLC",
+  "reason_code": "SCORE_BELOW_THRESHOLD",
+  "score_total": 10,
+  "score_breakdown": {
+    "sic_tier": "C",
+    "sic_base": 40,
+    "state_modifier": -30,
+    "tiv_modifier": 0
+  },
+  "routing_reason": "Largest negative component: SIC tier C (base 40)",
+  "scored_at": "2026-04-19T16:07:47.147488+00:00"
+}

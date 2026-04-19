@@ -9,15 +9,17 @@
     <a href="/" style="font-size:12px;color:#6b6a65">← Back to queue</a>
     <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
       <span style="font-size:17px;font-weight:700;color:#1a1a18">{{ event.named_insured }}</span>
-      {% if status == 'declined' %}
+      {% if hitl_required %}
+        <span class="badge badge-purple">HITL Required</span>
+      {% elif status == 'declined' and decision %}
         <span class="badge badge-red">Declined</span>
-      {% elif score.routing == 'auto_pass' %}
-        <span class="badge badge-green">Auto-passed</span>
-      {% elif score.routing == 'auto_decline' %}
+      {% elif status == 'declined' %}
         <span class="badge badge-red">Auto-declined</span>
-      {% elif score.routing == 'referral' and status == 'referral_pending' %}
+      {% elif score and score.routing == 'auto_pass' %}
+        <span class="badge badge-green">Auto-passed</span>
+      {% elif score and score.routing == 'referral' and status == 'referral_pending' %}
         <span class="badge badge-amber">Referral pending</span>
-      {% elif score.routing == 'referral' and status in ['w3_triggered','w3_pending_retry'] %}
+      {% elif score and score.routing == 'referral' and status in ['w3_triggered','w3_pending_retry'] %}
         <span class="badge badge-green">UW approved</span>
       {% else %}
         <span class="badge badge-blue">{{ status }}</span>
@@ -28,7 +30,24 @@
   <span class="sla-pill {{ sla_css }}">⏱ {{ sla_label }}</span>
 </div>
 
-{# ── Score tiles ── #}
+{# ── HITLRequired banner ── #}
+{% if hitl_required %}
+<div style="background:#FFF8E1;border:1px solid #EF9F27;border-radius:8px;padding:16px 20px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-start">
+  <span style="font-size:20px">⚠</span>
+  <div>
+    <div style="font-weight:600;color:#7a5c00;margin-bottom:4px">SIC confidence below threshold — automated scoring skipped</div>
+    <div style="font-size:13px;color:#7a5c00">
+      SIC <strong>{{ event.sic_code }}</strong> ({{ event.sic_description }}) is flagged as ambiguous.
+      Classifier confidence: <strong>{{ "%.0f"|format(event.sic_confidence * 100) }}%</strong>
+      (threshold: 90% for ambiguous codes, 80% otherwise).
+      An underwriter must manually review and assign a decision.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Score tiles (only when a score exists) ── #}
+{% if score %}
 <div class="tile-row">
   <div class="tile">
     <div class="tile-val" style="color:{{ sic_color }}">{{ score.sic.base_score }}</div>
@@ -58,32 +77,99 @@
     {% else %}Decline band &lt;35{% endif %}
   </span>
 </div>
+{% endif %}
 
 {# ── Submission details ── #}
 <div style="background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);border-radius:8px;padding:20px;margin-bottom:20px">
   <div class="section-head" style="margin-top:0">Submission detail</div>
   <dl class="detail-grid">
     <dt>Named insured</dt>   <dd><strong>{{ event.named_insured }}</strong></dd>
-    <dt>Producer</dt>        <dd class="muted">—</dd>
+    <dt>SIC code</dt>        <dd>{{ event.sic_code }} — {{ event.sic_description }}</dd>
+    <dt>SIC confidence</dt>  <dd>{{ "%.0f"|format(event.sic_confidence * 100) }}%
+      {% if event.sic_confidence < 0.80 %}<span style="color:#E24B4A;font-size:11px;margin-left:6px">below 80% threshold</span>
+      {% elif event.sic_confidence < 0.90 %}<span style="color:#EF9F27;font-size:11px;margin-left:6px">below 90% ambiguous threshold</span>
+      {% endif %}
+    </dd>
     <dt>Writing state</dt>   <dd>{{ event.writing_state }} · {{ event.premises_zip }}</dd>
     <dt>TIV</dt>             <dd>{{ tiv_display }}</dd>
     <dt>PC account</dt>      <dd class="mono">{{ event.pc_account_id }}</dd>
-    <dt>SIC confidence</dt>  <dd>{{ "%.0f"|format(event.sic_confidence * 100) }}%</dd>
     <dt>Scored at</dt>       <dd class="muted">{{ scored_at_fmt }}</dd>
   </dl>
 </div>
 
-{# ── Decision area ── #}
-{% if status == 'referral_pending' %}
+{# ══════════════════════════════════════════════════════════
+   DECISION AREA — four cases
+   ══════════════════════════════════════════════════════════ #}
+
+{# ── Macro: reason code select with optgroups ── #}
+{% macro reason_select(field_id="reason_code") %}
+<label class="field-label">Reason code *</label>
+<select name="reason_code" id="{{ field_id }}" required style="margin-bottom:8px;width:100%;padding:7px 10px;border:1px solid #d0cfc9;border-radius:6px;background:#fff;font-size:13px;color:#1a1a18">
+  <option value="" disabled selected>— select a reason —</option>
+  {% for group, codes in reason_codes %}
+  <optgroup label="{{ group }}">
+    {% for code, label in codes %}
+    <option value="{{ code }}">{{ code }} — {{ label }}</option>
+    {% endfor %}
+  </optgroup>
+  {% endfor %}
+</select>
+{% endmacro %}
+
+{# ── CASE 1: HITLRequired — no score, needs manual decision ── #}
+{% if hitl_required and not decision %}
+<div class="section-head">Manual underwriter decision</div>
+<div class="decision-section">
+
+  <details class="decision-panel">
+    <summary class="approve">✓ Approve manually — advance to W3 enrichment</summary>
+    <div class="decision-form">
+      <form method="post" action="/review/{{ event.submission_id }}/decide">
+        <input type="hidden" name="choice" value="approve">
+        <label class="field-label">Manual score (0–100) *</label>
+        <input type="number" name="override_score" min="0" max="100" required placeholder="Enter your assessed score" style="margin-bottom:8px">
+        {{ reason_select("rc-hitl-approve") }}
+        <label class="field-label">Reviewer ID *</label>
+        <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+        <label class="field-label">Notes (optional)</label>
+        <input type="text" name="notes" placeholder="Additional context or conditions">
+        <div style="margin-top:12px">
+          <button type="submit" class="submit-btn btn-green">Confirm Manual Approve</button>
+        </div>
+      </form>
+    </div>
+  </details>
+
+  <details class="decision-panel">
+    <summary class="decline">✗ Decline manually — reject submission</summary>
+    <div class="decision-form">
+      <form method="post" action="/review/{{ event.submission_id }}/decide">
+        <input type="hidden" name="choice" value="decline">
+        {{ reason_select("rc-hitl-decline") }}
+        <label class="field-label">Reviewer ID *</label>
+        <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+        <label class="field-label">Notes (optional)</label>
+        <input type="text" name="notes" placeholder="Reason for decline">
+        <div style="margin-top:12px">
+          <button type="submit" class="submit-btn btn-red">Confirm Manual Decline</button>
+        </div>
+      </form>
+    </div>
+  </details>
+
+</div>
+
+{# ── CASE 2: Referral pending — full Approve / Override / Decline ── #}
+{% elif status == 'referral_pending' and not decision %}
 <div class="section-head">Underwriter decision</div>
 <div class="decision-section">
 
-  {# Approve #}
   <details class="decision-panel">
     <summary class="approve">✓ Approve — advance to W3 enrichment</summary>
     <div class="decision-form">
       <form method="post" action="/review/{{ event.submission_id }}/decide">
         <input type="hidden" name="choice" value="approve">
+        {{ reason_select("rc-approve") }}
         <label class="field-label">Reviewer ID *</label>
         <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
         <label class="field-label">Notes (optional)</label>
@@ -95,20 +181,18 @@
     </div>
   </details>
 
-  {# Override #}
   <details class="decision-panel">
-    <summary class="override">~ Override — approve with adjusted score and reason</summary>
+    <summary class="override">~ Override — approve with adjusted score</summary>
     <div class="decision-form">
       <form method="post" action="/review/{{ event.submission_id }}/decide">
         <input type="hidden" name="choice" value="override">
-        <label class="field-label">Reason code *</label>
-        <input type="text" name="reason_code" required placeholder="e.g. OVERRIDE_MANUAL" style="margin-bottom:8px">
         <label class="field-label">Override score (0–100)</label>
         <input type="number" name="override_score" min="0" max="100" placeholder="{{ score.total }}" style="margin-bottom:8px">
+        {{ reason_select("rc-override") }}
         <label class="field-label">Reviewer ID *</label>
         <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
         <label class="field-label">Notes (optional)</label>
-        <input type="text" name="notes" placeholder="Free-text notes">
+        <input type="text" name="notes" placeholder="Justification for override">
         <div style="margin-top:12px">
           <button type="submit" class="submit-btn btn-amber">Submit Override</button>
         </div>
@@ -116,14 +200,12 @@
     </div>
   </details>
 
-  {# Decline #}
   <details class="decision-panel">
     <summary class="decline">✗ Decline — reject submission</summary>
     <div class="decision-form">
       <form method="post" action="/review/{{ event.submission_id }}/decide">
         <input type="hidden" name="choice" value="decline">
-        <label class="field-label">Reason code *</label>
-        <input type="text" name="reason_code" required placeholder="e.g. DECLINE_MANUAL" style="margin-bottom:8px">
+        {{ reason_select("rc-decline") }}
         <label class="field-label">Reviewer ID *</label>
         <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
         <label class="field-label">Notes (optional)</label>
@@ -137,8 +219,68 @@
 
 </div>
 
+{# ── CASE 3: Auto-passed — allow underwriter to override (decline) ── #}
+{% elif can_override_auto and score and score.routing == 'auto_pass' %}
+<div class="section-head">Decision outcome</div>
+<div class="outcome-panel" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+    <span class="badge badge-green" style="font-size:13px;padding:4px 12px">Auto-passed by Aria</span>
+  </div>
+  <div style="font-size:13px;color:#6b6a65">Score {{ score.total }} / 100 · {{ score.routing_reason }}</div>
+</div>
+<details class="decision-panel" style="border-color:#E24B4A30">
+  <summary class="decline" style="color:#E24B4A">⚠ Override auto-pass — decline this submission</summary>
+  <div class="decision-form">
+    <div style="font-size:12px;color:#7a5c00;background:#FFF8E1;border:1px solid #EF9F27;border-radius:6px;padding:10px 12px;margin-bottom:12px">
+      Aria scored this submission <strong>{{ score.total }}</strong> (auto-pass ≥65). Overriding requires a documented reason and will be flagged in the audit log.
+    </div>
+    <form method="post" action="/review/{{ event.submission_id }}/decide">
+      <input type="hidden" name="choice" value="decline">
+      {{ reason_select("rc-override-pass") }}
+      <label class="field-label">Reviewer ID *</label>
+      <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+      <label class="field-label">Notes — mandatory for auto-pass override</label>
+      <input type="text" name="notes" required placeholder="Explain why this auto-pass should be declined">
+      <div style="margin-top:12px">
+        <button type="submit" class="submit-btn btn-red">Override — Decline Submission</button>
+      </div>
+    </form>
+  </div>
+</details>
+
+{# ── CASE 4: Auto-declined — allow underwriter to override (approve) ── #}
+{% elif can_override_auto and score and score.routing == 'auto_decline' %}
+<div class="section-head">Decision outcome</div>
+<div class="outcome-panel" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+    <span class="badge badge-red" style="font-size:13px;padding:4px 12px">Auto-declined by Aria</span>
+  </div>
+  <div style="font-size:13px;color:#6b6a65">Score {{ score.total }} / 100 · {{ score.routing_reason }}</div>
+</div>
+<details class="decision-panel" style="border-color:#1D9E7530">
+  <summary class="approve" style="color:#1D9E75">⚠ Override auto-decline — approve this submission</summary>
+  <div class="decision-form">
+    <div style="font-size:12px;color:#7a5c00;background:#FFF8E1;border:1px solid #EF9F27;border-radius:6px;padding:10px 12px;margin-bottom:12px">
+      Aria scored this submission <strong>{{ score.total }}</strong> (auto-decline &lt;35). Overriding requires an adjusted score, a documented reason, and will be escalated in the audit log.
+    </div>
+    <form method="post" action="/review/{{ event.submission_id }}/decide">
+      <input type="hidden" name="choice" value="override">
+      <label class="field-label">Override score (0–100) *</label>
+      <input type="number" name="override_score" min="0" max="100" required placeholder="Enter your assessed score" style="margin-bottom:8px">
+      {{ reason_select("rc-override-decline") }}
+      <label class="field-label">Reviewer ID *</label>
+      <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+      <label class="field-label">Notes — mandatory for auto-decline override</label>
+      <input type="text" name="notes" required placeholder="Explain why this auto-decline should be approved">
+      <div style="margin-top:12px">
+        <button type="submit" class="submit-btn btn-amber">Override — Approve Submission</button>
+      </div>
+    </form>
+  </div>
+</details>
+
+{# ── CASE 5: Decision already recorded — read-only outcome ── #}
 {% elif decision %}
-{# ── Read-only outcome panel ── #}
 <div class="section-head">Decision outcome</div>
 <div class="outcome-panel">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
@@ -146,14 +288,19 @@
     {% elif decision.choice == 'override' %}<span class="badge badge-amber" style="font-size:13px;padding:4px 12px">Override</span>
     {% elif decision.choice == 'decline' %}<span class="badge badge-red" style="font-size:13px;padding:4px 12px">Declined</span>
     {% else %}<span class="badge badge-blue">{{ decision.choice }}</span>{% endif %}
+    {% if 'Override of auto_pass' in (decision.notes or '') or 'Override of auto_decline' in (decision.notes or '') %}
+    <span class="badge badge-purple" style="font-size:11px">Automated override</span>
+    {% endif %}
   </div>
   <dl class="detail-grid">
-    <dt>Reviewer</dt>    <dd>{{ decision.reviewer_id }}</dd>
-    <dt>Reason code</dt> <dd class="mono">{{ decision.reason_code or '—' }}</dd>
-    <dt>Notes</dt>       <dd>{{ decision.notes or '—' }}</dd>
-    <dt>Decided at</dt>  <dd class="muted">{{ decision.decided_at[:16].replace('T',' ') }} UTC</dd>
+    <dt>Reviewer</dt>      <dd>{{ decision.reviewer_id }}</dd>
+    <dt>Reason code</dt>   <dd class="mono">{{ decision.reason_code or '—' }}</dd>
+    <dt>Override score</dt><dd>{{ decision.override_score if decision.override_score is not none else '—' }}</dd>
+    <dt>Notes</dt>         <dd>{{ decision.notes or '—' }}</dd>
+    <dt>Decided at</dt>    <dd class="muted">{{ decision.decided_at[:16].replace('T',' ') }} UTC</dd>
   </dl>
 </div>
+
 {% else %}
 <div style="color:#6b6a65;font-size:13px;padding:12px 0">No decision recorded yet — submission is {{ status }}.</div>
 {% endif %}

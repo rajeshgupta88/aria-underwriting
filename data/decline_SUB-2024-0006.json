@@ -1,0 +1,14 @@
+{
+  "submission_id": "SUB-2024-0006",
+  "named_insured": "Greenberg Builders Inc",
+  "reason_code": "SCORE_BELOW_THRESHOLD",
+  "score_total": 15,
+  "score_breakdown": {
+    "sic_tier": "C",
+    "sic_base": 40,
+    "state_modifier": -10,
+    "tiv_modifier": -15
+  },
+  "routing_reason": "Largest negative component: SIC tier C (base 40)",
+  "scored_at": "2026-04-19T16:07:49.576619+00:00"
+}

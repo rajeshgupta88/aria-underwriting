@@ -23,12 +23,17 @@
   </div>
 </div>
 
-{# ── Filter bar ── #}
-<div class="filter-bar">
-  <a href="/?filter=all"      class="filter-btn{% if filter == 'all' %} active{% endif %}">All</a>
-  <a href="/?filter=referral" class="filter-btn{% if filter == 'referral' %} active{% endif %}">Referral</a>
-  <a href="/?filter=pass"     class="filter-btn{% if filter == 'pass' %} active{% endif %}">Auto-pass</a>
-  <a href="/?filter=declined" class="filter-btn{% if filter == 'declined' %} active{% endif %}">Declined</a>
+{# ── Filter bar + reset ── #}
+<div class="filter-bar" style="display:flex;justify-content:space-between;align-items:center">
+  <div style="display:flex;gap:6px">
+    <a href="/?filter=all"      class="filter-btn{% if filter == 'all' %} active{% endif %}">All</a>
+    <a href="/?filter=referral" class="filter-btn{% if filter == 'referral' %} active{% endif %}">Referral</a>
+    <a href="/?filter=pass"     class="filter-btn{% if filter == 'pass' %} active{% endif %}">Auto-pass</a>
+    <a href="/?filter=declined" class="filter-btn{% if filter == 'declined' %} active{% endif %}">Declined</a>
+  </div>
+  <form method="post" action="/reset" onsubmit="return confirm('Reset all demo data and re-seed 6 sample submissions?')">
+    <button type="submit" style="background:transparent;border:1px solid #E24B4A;color:#E24B4A;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-weight:500">↺ Reset demo</button>
+  </form>
 </div>
 
 {# ── Submission table ── #}
@@ -50,11 +55,7 @@
     {% for row in rows %}
       <tr>
         <td>
-          {% if row.score_total is not none %}
-            <a href="/review/{{ row.id }}" style="color:#3C3489;font-weight:500">{{ row.named_insured }}</a>
-          {% else %}
-            <span style="color:#6b6a65">{{ row.named_insured }}</span>
-          {% endif %}
+          <a href="/review/{{ row.id }}" style="color:#3C3489;font-weight:500">{{ row.named_insured }}</a>
         </td>
         <td>
           <span class="mono">{{ row.sic_code }}</span>
@@ -88,6 +89,8 @@
             <span class="badge badge-amber">Referral</span>
           {% elif row.routing == 'referral' and row.status in ['w3_triggered','w3_pending_retry'] %}
             <span class="badge badge-green">UW approved</span>
+          {% elif row.status == 'referral_pending' and row.routing is none %}
+            <span class="badge badge-purple">HITL Required</span>
           {% elif row.status == 'aria_pending' or row.status == 'aria_scored' %}
             <span class="badge badge-blue">Processing</span>
           {% else %}

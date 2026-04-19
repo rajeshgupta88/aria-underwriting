@@ -40,10 +40,10 @@ class AuditLogger:
         with open(self._score_log, "a") as f:
             f.write(json.dumps(record) + "\n")
 
-    def log_decision(self, decision: UWDecision, score: CompositeScore) -> None:
+    def log_decision(self, decision: UWDecision, score: CompositeScore | None) -> None:
         record: dict = {}
         record.update(_serialize(decision))
-        record["composite_snapshot"] = _serialize(score)
+        record["composite_snapshot"] = _serialize(score) if score is not None else None
         record["log_hash"] = _sha256(json.dumps(record, sort_keys=True))
         with open(self._decisions, "a") as f:
             f.write(json.dumps(record) + "\n")

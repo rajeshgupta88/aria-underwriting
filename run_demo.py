@@ -67,13 +67,13 @@ def _reset_demo_data() -> None:
     from aria.db import SubmissionDB
     db = SubmissionDB("data/submissions.db")
     db.seed_sample_data()
-    CONSOLE.print("[dim]Demo data reset — 5 sample submissions loaded[/dim]")
+    CONSOLE.print("[dim]Demo data reset — 6 sample submissions loaded[/dim]")
 
 
 def _submit_samples() -> list[dict]:
     results = []
     with httpx.Client(base_url=BASE, timeout=15) as client:
-        for n in range(5):
+        for n in range(6):
             try:
                 r = client.post(f"/test/submit/{n}")
                 r.raise_for_status()
@@ -182,7 +182,7 @@ def main() -> None:
     _reset_demo_data()
 
     # 3. Submit all 5 samples
-    CONSOLE.print("[dim]Submitting 5 sample submissions…[/dim]")
+    CONSOLE.print("[dim]Submitting 6 sample submissions…[/dim]")
     results = _submit_samples()
 
     # 4. Print per-submission table

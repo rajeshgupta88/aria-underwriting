@@ -357,6 +357,18 @@ async def insights_page(request: Request):
     return templates.TemplateResponse("insights.html", ctx)
 
 
+@app.post("/reset", response_class=RedirectResponse)
+async def reset_demo():
+    """Truncate audit files and re-seed all demo submissions."""
+    for p in ("data/score_log.jsonl", "data/decisions.jsonl"):
+        Path(p).write_text("")
+    db: SubmissionDB = app.state.db
+    db._conn.execute("DELETE FROM submissions")
+    db._conn.commit()
+    db.seed_sample_data()
+    return RedirectResponse(url="/", status_code=303)
+
+
 @app.get("/review", response_class=RedirectResponse)
 async def review_nav(request: Request):
     db: SubmissionDB = request.app.state.db

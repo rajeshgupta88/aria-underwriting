@@ -15,26 +15,50 @@ templates = Jinja2Templates(directory="templates")
 
 _SLA_HOURS = int(os.getenv("SLA_HOURS", "4"))
 
+# Reason codes grouped by category — shown as <optgroup> in the decision form
+REASON_CODES = [
+    ("Approval", [
+        ("APPROVE_STANDARD",      "Standard risk — within appetite guidelines"),
+        ("APPROVE_CONDITIONS",    "Approved with underwriting conditions attached"),
+        ("APPROVE_EXCEPTION",     "Exception granted — requires home-office sign-off"),
+        ("APPROVE_RELATIONSHIP",  "Strategic account — relationship exception"),
+    ]),
+    ("Override / Escalation", [
+        ("OVERRIDE_INFO_RESOLVED", "Additional information resolves flagged concern"),
+        ("OVERRIDE_PORTFOLIO",     "Portfolio fit — accept for class diversification"),
+        ("OVERRIDE_PRICING",       "Acceptable risk at adjusted premium level"),
+        ("OVERRIDE_MANUAL",        "Manual review completed — within appetite"),
+    ]),
+    ("Decline", [
+        ("DECLINE_CAT_EXPOSURE",     "Catastrophe exposure exceeds carrier threshold"),
+        ("DECLINE_LOSS_HISTORY",     "Adverse prior loss history"),
+        ("DECLINE_OUTSIDE_APPETITE", "Class of business outside current appetite"),
+        ("DECLINE_SIC_INELIGIBLE",   "SIC code ineligible for this program"),
+        ("DECLINE_TIV_LIMIT",        "TIV exceeds maximum per-risk limit"),
+        ("DECLINE_COMPLIANCE",       "Compliance or regulatory restriction"),
+        ("DECLINE_MANUAL",           "Manual underwriter decline — see notes"),
+    ]),
+]
 
-def _load_event_and_score(submission_id: str, request: Request):
+
+def _load_event(submission_id: str, request: Request):
     db = request.app.state.db
-    audit = request.app.state.audit
-
     row = db.get_submission(submission_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Submission {submission_id!r} not found")
-
     payload = json.loads(row["raw_payload"])
     payload["created_at"] = datetime.fromisoformat(payload["created_at"])
     event = SubmissionEvent(**payload)
+    return row, event
 
+
+def _load_score(submission_id: str, request: Request) -> CompositeScore | None:
+    audit = request.app.state.audit
     score_records = audit.read_scores(submission_id=submission_id)
     if not score_records:
-        raise HTTPException(status_code=404,
-                            detail="No score record found — submission may not have been scored yet")
-
+        return None
     raw = {k: v for k, v in score_records[-1].items() if k != "log_hash"}
-    score = CompositeScore(
+    return CompositeScore(
         submission_id=raw["submission_id"],
         sic=SICScore(**raw["sic"]),
         state=StateScore(**raw["state"]),
@@ -44,7 +68,6 @@ def _load_event_and_score(submission_id: str, request: Request):
         routing_reason=raw["routing_reason"],
         scored_at=datetime.fromisoformat(raw["scored_at"]),
     )
-    return row, event, score
 
 
 def _sla_info(scored_at: datetime) -> tuple[str, str]:
@@ -86,19 +109,34 @@ async def review_page(submission_id: str, request: Request):
     db = request.app.state.db
     audit = request.app.state.audit
 
-    row, event, score = _load_event_and_score(submission_id, request)
+    row, event = _load_event(submission_id, request)
+    score = _load_score(submission_id, request)
     status = row["status"]
 
-    tiv_display = f"${event.tiv:,.0f}" if event.tiv is not None else "Missing"
-    sla_label, sla_css = _sla_info(score.scored_at)
-    scored_at_fmt = score.scored_at.strftime("%Y-%m-%d %H:%M UTC")
+    hitl_required = score is None
 
-    # Latest decision (if any)
+    tiv_display = f"${event.tiv:,.0f}" if event.tiv is not None else "Missing"
+    nav_count = len(db.list_submissions(status="referral_pending", limit=200))
+
     decisions = audit.read_decisions(submission_id=submission_id)
     latest_decision = decisions[-1] if decisions else None
 
-    # Nav counts for base template
-    nav_count = len(db.list_submissions(status="referral_pending", limit=200))
+    # SLA — use score.scored_at when available, else submission created_at
+    if score is not None:
+        sla_label, sla_css = _sla_info(score.scored_at)
+        scored_at_fmt = score.scored_at.strftime("%Y-%m-%d %H:%M UTC")
+    else:
+        sla_label, sla_css = _sla_info(event.created_at.replace(tzinfo=timezone.utc)
+                                         if event.created_at.tzinfo is None
+                                         else event.created_at)
+        scored_at_fmt = "—"
+
+    # Can UW override an already-automated decision?
+    can_override_auto = (
+        not latest_decision
+        and score is not None
+        and status in ("w3_triggered", "w3_pending_retry", "declined")
+    )
 
     return templates.TemplateResponse("review.html", {
         "request": request,
@@ -114,10 +152,14 @@ async def review_page(submission_id: str, request: Request):
         "sla_css": sla_css,
         "scored_at_fmt": scored_at_fmt,
         "decision": latest_decision,
-        "sic_color": _score_color(score.sic.base_score),
-        "state_color": _sign_color(score.state.modifier),
-        "tiv_color": _sign_color(score.tiv.modifier),
-        "composite_color": _score_color(score.total),
+        "hitl_required": hitl_required,
+        "can_override_auto": can_override_auto,
+        "reason_codes": REASON_CODES,
+        # score colors (safe to call even when score is None via template checks)
+        "sic_color":       _score_color(score.sic.base_score) if score else "#6b6a65",
+        "state_color":     _sign_color(score.state.modifier)  if score else "#6b6a65",
+        "tiv_color":       _sign_color(score.tiv.modifier)    if score else "#6b6a65",
+        "composite_color": _score_color(score.total)           if score else "#6b6a65",
     })
 
 
@@ -135,17 +177,24 @@ async def decide(
     audit = request.app.state.audit
     sub_router = request.app.state.router
 
-    row, event, score = _load_event_and_score(submission_id, request)
+    row, event = _load_event(submission_id, request)
+    score = _load_score(submission_id, request)
 
     if choice not in ("approve", "override", "decline"):
         raise HTTPException(status_code=422, detail="Invalid choice")
 
     override_score_int: int | None = None
-    if choice == "override" and override_score.strip():
+    if override_score.strip():
         try:
             override_score_int = int(override_score.strip())
         except ValueError:
-            override_score_int = score.total
+            override_score_int = score.total if score else None
+
+    # For override of an auto decision, prepend original routing to notes for clarity
+    original_routing = score.routing if score else "hitl_required"
+    if row["status"] in ("w3_triggered", "w3_pending_retry", "declined"):
+        prefix = f"[Override of {original_routing}] "
+        notes = prefix + notes if notes else prefix.strip()
 
     decision = UWDecision(
         submission_id=submission_id,
@@ -160,7 +209,11 @@ async def decide(
     audit.log_decision(decision, score)
 
     if choice in ("approve", "override"):
-        await sub_router.advance_to_w3(event, score)
+        if score is not None:
+            await sub_router.advance_to_w3(event, score)
+        else:
+            # HITLRequired — manual approval, no composite score available
+            db.update_status(submission_id, "w3_triggered")
     else:
         db.update_status(submission_id, "declined")
 
@@ -169,5 +222,4 @@ async def decide(
 
 @router.get("/{submission_id}/result", response_class=HTMLResponse)
 async def result_page(submission_id: str, request: Request):
-    # Just redirect to the review page — it now shows the outcome panel
     return RedirectResponse(url=f"/review/{submission_id}", status_code=303)
