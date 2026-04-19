@@ -334,21 +334,26 @@ def _build_insights(db: SubmissionDB, audit: AuditLogger) -> dict:
     ]
     max_sic = max((s["count"] for s in sic_volume), default=1) or 1
 
-    # Referral SLA status
+    # Pending review SLA — includes both referrals and HITLRequired (no score)
     referral_subs = db.list_submissions(status="referral_pending", limit=50)
     referral_sla = []
     for sub in referral_subs:
         scores = audit.read_scores(submission_id=sub["id"])
+        # Use scored_at if available, else submission created_at (HITLRequired)
         if scores:
-            scored_at_iso = scores[-1].get("scored_at", "")
-            sla_label, sla_color_cls = _sla_info(scored_at_iso)
-            color = {"sla-red": "#E24B4A", "sla-amber": "#EF9F27", "sla-green": "#1D9E75"}.get(sla_color_cls, "#6b6a65")
-            referral_sla.append({
-                "id": sub["id"],
-                "named_insured": sub["named_insured"],
-                "sla_label": sla_label,
-                "sla_color": color,
-            })
+            ref_time = scores[-1].get("scored_at", "")
+        else:
+            ref_time = sub["created_at"]
+        sla_label, sla_color_cls = _sla_info(ref_time)
+        color = {"sla-red": "#E24B4A", "sla-amber": "#EF9F27", "sla-green": "#1D9E75"}.get(sla_color_cls, "#6b6a65")
+        is_hitl = len(scores) == 0
+        referral_sla.append({
+            "id": sub["id"],
+            "named_insured": sub["named_insured"],
+            "sla_label": sla_label,
+            "sla_color": color,
+            "is_hitl": is_hitl,
+        })
 
     # Governance
     integrity = audit.verify_integrity()
@@ -374,13 +379,20 @@ def _build_insights(db: SubmissionDB, audit: AuditLogger) -> dict:
             "stp_rate": stp_rate,
             "avg_score": avg_score,
             "uw_time_saved": uw_time_saved,
+            "uw_saved_mins": uw_saved_mins,
             "override_rate": override_rate,
+            "override_context": f"{auto_overrides} of {total_decisions} decision{'s' if total_decisions != 1 else ''}" if total_decisions else "no decisions yet",
+            "total_scored": total,
+            "auto_pass_count": auto_pass_count,
+            "auto_decline_count": auto_decline_count,
+            "referral_count": referral_count,
         },
         "decline_drivers": decline_drivers,
         "max_decline_count": max_decline,
         "sic_volume": sic_volume,
         "max_sic_count": max_sic,
         "referral_sla": referral_sla,
+        "sla_hours": _SLA_HOURS,
         "governance": governance,
     }
 

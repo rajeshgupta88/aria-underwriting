@@ -3,128 +3,196 @@
 
 {% block content %}
 
-{# ── Metric row ── #}
+{# ── Top metric row ── #}
 <div class="metric-grid">
+
   <div class="metric-card">
     <div class="metric-value" style="color:#1D9E75">{{ metrics.stp_rate }}%</div>
-    <div class="metric-label">STP rate (straight-through)</div>
+    <div class="metric-label">Straight-through rate</div>
+    <div class="metric-desc">
+      {{ metrics.auto_pass_count }} of {{ metrics.total_scored }} submissions were auto-approved or auto-declined
+      with no human review needed.
+    </div>
   </div>
+
   <div class="metric-card">
     <div class="metric-value">{{ metrics.avg_score }}</div>
-    <div class="metric-label">Avg composite score</div>
+    <div class="metric-label">Average risk score</div>
+    <div class="metric-desc">
+      Mean composite score across {{ metrics.total_scored }} scored submission{{ 's' if metrics.total_scored != 1 else '' }}.
+      Scale: 0 (worst) → 100 (best). Aria passes at ≥65.
+    </div>
   </div>
+
   <div class="metric-card">
     <div class="metric-value" style="color:#378ADD">{{ metrics.uw_time_saved }}</div>
-    <div class="metric-label">UW time saved<br><span style="font-size:10px;color:#6b6a65">vs. manual (8 min/sub)</span></div>
+    <div class="metric-label">Estimated UW time saved</div>
+    <div class="metric-desc">
+      {{ metrics.auto_pass_count + metrics.auto_decline_count }} submissions handled automatically
+      × 8 min/submission vs. full manual review.
+    </div>
   </div>
+
   <div class="metric-card">
-    <div class="metric-value" style="color:#EF9F27">{{ metrics.override_rate }}</div>
-    <div class="metric-label">Override rate<br><span style="font-size:10px;color:#6b6a65">auto decisions reversed / all decisions</span></div>
+    <div class="metric-value" style="color:{% if metrics.override_rate == '—' %}#6b6a65{% elif metrics.override_rate.rstrip('%')|int > 25 %}#EF9F27{% else %}#1a1a18{% endif %}">
+      {{ metrics.override_rate }}
+    </div>
+    <div class="metric-label">Override rate</div>
+    <div class="metric-desc">
+      {{ metrics.override_context }}.
+      UW reversed an automated approve or decline decision.
+    </div>
   </div>
+
 </div>
 
 {# ── Insight cards grid ── #}
 <div class="insight-grid">
 
-  {# Card 1 — Decline drivers #}
+  {# ── Card 1: Decline drivers ── #}
   <div class="insight-card">
-    <div class="insight-title">Decline drivers</div>
-    {% if decline_drivers %}
-    {% for item in decline_drivers %}
-    <div class="bar-row">
-      <span class="bar-label">{{ item.label }}</span>
-      <div class="bar-track">
-        <div class="bar-fill" style="width:{{ ((item.count / max_decline_count) * 100)|int if max_decline_count > 0 else 0 }}%;background:#7F77DD"></div>
-      </div>
-      <span class="bar-count">{{ item.count }}</span>
+    <div class="insight-title">Why did Aria decline?</div>
+    <div class="insight-desc">
+      Root causes behind {{ metrics.auto_decline_count }} auto-declined submission{{ 's' if metrics.auto_decline_count != 1 else '' }}.
+      A submission can have multiple contributing factors.
     </div>
-    {% endfor %}
+    {% if metrics.auto_decline_count > 0 %}
+    <div style="margin-top:14px">
+      {% for item in decline_drivers %}
+      <div class="bar-row">
+        <span class="bar-label">
+          {% if item.label == 'SIC Tier X' %}
+            <span title="Industry code is in Aria's hard-decline list (e.g. liquor stores, gambling)">{{ item.label }} ⓘ</span>
+          {% elif item.label == 'State modifier' %}
+            <span title="State carries a negative risk modifier (e.g. FL hurricane exposure, CA wildfire)">{{ item.label }} ⓘ</span>
+          {% else %}
+            <span title="TIV over $5M puts the submission in the highest-risk band (−25 modifier)">{{ item.label }} ⓘ</span>
+          {% endif %}
+        </span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{ ((item.count / max_decline_count) * 100)|int }}%;background:#7F77DD"></div>
+        </div>
+        <span class="bar-count">{{ item.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
-    <div class="muted" style="font-size:12px">No auto-decline data yet.</div>
+    <div class="muted" style="font-size:12px;margin-top:14px">No auto-declines yet — run the demo to populate.</div>
     {% endif %}
   </div>
 
-  {# Card 2 — SIC volume #}
+  {# ── Card 2: SIC volume ── #}
   <div class="insight-card">
-    <div class="insight-title">SIC volume (top 5)</div>
+    <div class="insight-title">Submission mix by industry (SIC)</div>
+    <div class="insight-desc">
+      How many submissions came in per SIC code. Bar colour shows Aria's risk tier for that industry.
+    </div>
+    <div style="display:flex;gap:12px;margin:8px 0 10px;flex-wrap:wrap">
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="color:#1D9E75;font-size:8px">■</span> Tier A — Preferred (base 90)</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="color:#EF9F27;font-size:8px">■</span> Tier B/C — Acceptable/Marginal</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="color:#E24B4A;font-size:8px">■</span> Tier X — Hard decline</span>
+    </div>
     {% if sic_volume %}
     {% for item in sic_volume %}
     <div class="bar-row">
-      <span class="bar-label mono">{{ item.sic_code }} <span style="font-family:system-ui;font-size:11px">Tier {{ item.tier }}</span></span>
+      <span class="bar-label mono">{{ item.sic_code }}
+        <span style="font-family:system-ui;font-size:11px;color:#6b6a65">T{{ item.tier }}</span>
+      </span>
       <div class="bar-track">
-        <div class="bar-fill" style="width:{{ ((item.count / max_sic_count) * 100)|int if max_sic_count > 0 else 0 }}%;background:{{ item.bar_color }}"></div>
+        <div class="bar-fill" style="width:{{ ((item.count / max_sic_count) * 100)|int }}%;background:{{ item.bar_color }}"></div>
       </div>
       <span class="bar-count">{{ item.count }}</span>
     </div>
     {% endfor %}
     {% else %}
-    <div class="muted" style="font-size:12px">No submission data yet.</div>
+    <div class="muted" style="font-size:12px;margin-top:14px">No submission data yet.</div>
     {% endif %}
   </div>
 
-  {# Card 3 — Referral SLA status #}
+  {# ── Card 3: Pending review SLA ── #}
   <div class="insight-card">
-    <div class="insight-title">Referral SLA status</div>
-    {% if referral_sla %}
-    {% for item in referral_sla %}
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
-      <span style="color:{{ item.sla_color }};font-size:8px;flex-shrink:0">●</span>
-      <span style="flex:1;font-size:13px">
-        <a href="/review/{{ item.id }}" style="color:#3C3489">{{ item.named_insured }}</a>
-      </span>
-      <span style="font-size:11px;color:{{ item.sla_color }};font-weight:600;white-space:nowrap">{{ item.sla_label }}</span>
+    <div class="insight-title">Pending review — SLA clock</div>
+    <div class="insight-desc">
+      Submissions waiting for an underwriter decision. Each has a {{ sla_hours }}-hour SLA from the time
+      it was scored or received. Red = under 1 hour left or overdue.
     </div>
-    {% endfor %}
+    {% if referral_sla %}
+    <div style="margin-top:14px">
+      {% for item in referral_sla %}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 10px;background:#F5F4F0;border-radius:6px">
+        <span style="color:{{ item.sla_color }};font-size:10px;flex-shrink:0">●</span>
+        <div style="flex:1;min-width:0">
+          <a href="/review/{{ item.id }}" style="color:#3C3489;font-weight:500;font-size:13px">{{ item.named_insured }}</a>
+          {% if item.is_hitl %}
+          <span class="badge badge-amber" style="font-size:10px;margin-left:6px;vertical-align:middle">HITL</span>
+          {% endif %}
+        </div>
+        <span style="font-size:11px;color:{{ item.sla_color }};font-weight:600;white-space:nowrap">{{ item.sla_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
-    <div class="muted" style="font-size:12px">No referrals pending.</div>
+    <div style="margin-top:14px;color:#1D9E75;font-size:13px;font-weight:500">
+      ✓ No submissions pending review
+    </div>
     {% endif %}
   </div>
 
-  {# Card 4 — Governance health #}
+  {# ── Card 4: Governance health ── #}
   <div class="insight-card">
-    <div class="insight-title">Governance health</div>
-    <div class="kv-grid">
-      <span class="kv-key">Audit integrity</span>
+    <div class="insight-title">Governance &amp; system health</div>
+    <div class="insight-desc">
+      Audit trail integrity, SLA compliance, and LLM configuration status.
+    </div>
+    <div class="kv-grid" style="margin-top:14px">
+
+      <span class="kv-key">Audit log integrity</span>
       <span class="kv-val">
         {% if governance.audit_clean %}
-          <span style="color:#1D9E75;font-weight:600">100% verified</span>
+          <span style="color:#1D9E75;font-weight:600">✓ All records verified</span>
         {% else %}
-          <span style="color:#E24B4A;font-weight:600">Issues detected</span>
+          <span style="color:#E24B4A;font-weight:600">⚠ Tampered entries detected</span>
         {% endif %}
       </span>
 
-      <span class="kv-key">HITL SLA</span>
-      <span class="kv-val">{{ governance.sla_on_track }}/{{ governance.sla_total }} on track</span>
-
-      <span class="kv-key">Override rate</span>
+      <span class="kv-key">SLA compliance</span>
       <span class="kv-val">
-        {% if governance.override_rate is not none %}
-          {% if governance.override_rate > 25 %}
-            <span style="color:#EF9F27;font-weight:600">{{ governance.override_rate }}%</span>
-          {% else %}
-            {{ governance.override_rate }}%
-          {% endif %}
+        {% if governance.sla_total == 0 %}
+          <span class="muted">No pending items</span>
+        {% elif governance.sla_on_track == governance.sla_total %}
+          <span style="color:#1D9E75;font-weight:600">{{ governance.sla_on_track }}/{{ governance.sla_total }} on track</span>
         {% else %}
-          <span class="muted">—</span>
+          <span style="color:#EF9F27;font-weight:600">{{ governance.sla_on_track }}/{{ governance.sla_total }} on track</span>
         {% endif %}
       </span>
 
       <span class="kv-key">Decisions logged</span>
-      <span class="kv-val">{{ governance.decisions_logged }}</span>
+      <span class="kv-val">{{ governance.decisions_logged }}
+        <span class="muted" style="font-size:11px">
+          ({{ governance.override_rate if governance.override_rate is not none else '—' }}% were auto-decision overrides)
+        </span>
+      </span>
 
-      <span class="kv-key">LLM provider</span>
-      <span class="kv-val mono">{{ governance.llm_provider }} · {{ governance.llm_model[:16] }}</span>
+      <span class="kv-key">LLM for rationale</span>
+      <span class="kv-val mono">{{ governance.llm_provider }} / {{ governance.llm_model }}</span>
 
       <span class="kv-key">API key</span>
       <span class="kv-val">
         {% if governance.api_key_set %}
-          <span style="color:#1D9E75;font-weight:600">Configured</span>
+          <span style="color:#1D9E75">✓ Configured</span>
         {% else %}
-          <span style="color:#EF9F27;font-weight:600">Not set</span>
+          <span style="color:#EF9F27">⚠ Not set — LLM rationale disabled</span>
         {% endif %}
       </span>
+
     </div>
   </div>
 
 </div>
+
+<style>
+  .metric-desc{font-size:11px;color:#6b6a65;margin-top:6px;line-height:1.5;border-top:1px solid rgba(0,0,0,0.06);padding-top:6px}
+  .insight-desc{font-size:12px;color:#6b6a65;margin-bottom:4px;line-height:1.5}
+</style>
+
 {% endblock %}
