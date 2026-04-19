@@ -11,8 +11,10 @@ Built as a prototype for the BOP / GL line of business, running entirely on loca
 1. **Ingests** a submission event (SIC code, writing state, ZIP, TIV, named insured)
 2. **Scores** it across three independent dimensions (0–100 composite)
 3. **Routes** the result automatically — pass, referral, or decline
-4. **Flags** edge cases for a human underwriter via browser review card
-5. **Logs** every score and decision to a tamper-evident append-only audit trail
+4. **Flags** low-confidence SIC classifications as HITLRequired before scoring
+5. **Queues** referrals and HITLRequired cases for underwriter review in the browser
+6. **Allows** underwriters to override any automated decision (pass or decline) with a documented reason code
+7. **Logs** every score and decision to a tamper-evident append-only audit trail
 
 ---
 
@@ -26,8 +28,9 @@ Built as a prototype for the BOP / GL line of business, running entirely on loca
   POST /score ───────────▶│  SubmissionRouter  ──▶  Scorer           │
   POST /test/submit/{n}   │  (aria/router.py)        (aria/scorer.py) │
                           │         │                                  │
-                          │         ├─ auto_pass ──▶ W3 enrichment    │
-                          │         ├─ referral  ──▶ HITL review      │
+                          │         ├─ HITLRequired ▶ manual review   │
+                          │         ├─ auto_pass   ──▶ W3 enrichment  │
+                          │         ├─ referral    ──▶ HITL review    │
                           │         └─ auto_decline ▶ decline record  │
                           │                                           │
                           │  AuditLogger  ◀─── every score/decision   │
@@ -47,11 +50,11 @@ Built as a prototype for the BOP / GL line of business, running entirely on loca
 |---|---|---|
 | **Scoring engine** | `aria/scorer.py` | Deterministic SIC → tier lookup, state modifier, TIV band, composite 0–100 |
 | **Config** | `config/*.yaml` | Appetite tiers, state modifiers, TIV bands — editable without code changes |
-| **Router** | `aria/router.py` | Dispatches scored events downstream; handles HITLRequired exceptions |
-| **Audit** | `aria/audit.py` | Append-only JSONL with per-record SHA-256 hash for tamper detection |
+| **Router** | `aria/router.py` | Dispatches scored events downstream; raises HITLRequired before scoring when confidence is too low |
+| **Audit** | `aria/audit.py` | Append-only JSONL with per-record SHA-256 hash for tamper detection; records composite snapshot on every decision including overrides |
 | **Database** | `aria/db.py` | SQLite submission store (no ORM); tracks lifecycle status |
 | **LLM** | `aria/llm.py` | OpenAI / Anthropic client; generates narrative rationale (swap via config) |
-| **HITL** | `hitl/review.py`, `hitl/card.py` | Browser review page (POST /review/{id}/decide) and terminal Rich card |
+| **HITL** | `hitl/review.py`, `hitl/card.py` | Browser review page with decision forms and override capability; terminal Rich card |
 | **UI** | `templates/`, `aria/server.py` | Four-screen Jinja2 UI: queue, UW review, audit log, insights |
 
 ---
@@ -101,7 +104,33 @@ Composite = clamp(SIC base score + state modifier + TIV modifier, 0, 100)
 | 35 – 64 | `referral` — queue for underwriter review |
 | < 35 | `auto_decline` — reject and write decline record |
 
-**HITLRequired** is raised before scoring if SIC classifier confidence < 0.80, or < 0.90 for ambiguous SIC codes (7389, 7999, 1521, 7011).
+**HITLRequired** — raised *before* scoring if SIC classifier confidence < 0.80, or < 0.90 for ambiguous SIC codes (7389, 7999, 1521, 7011). No composite score is computed; the submission goes straight to manual review.
+
+---
+
+## Underwriter decision flows
+
+The browser review card (`/review/{id}`) presents a different form depending on the submission state:
+
+| State | What the UW sees |
+|---|---|
+| **HITLRequired** | Amber warning banner explaining the confidence shortfall; manual approve (with score) or decline form |
+| **Referral pending** | Full Approve / Override (adjusted score) / Decline panel |
+| **Auto-passed** | Read-only score card + collapsible "Override — Decline" form with mandatory notes |
+| **Auto-declined** | Read-only score card + collapsible "Override — Approve" form with mandatory override score and notes |
+| **Decision recorded** | Read-only outcome panel; override decisions are labelled `[Override of auto_pass/auto_decline]` |
+
+Every decision — including automated overrides — is logged to `data/decisions.jsonl` with a SHA-256 integrity hash and a snapshot of the composite score at the time of decision.
+
+### Reason codes
+
+All decision forms require the underwriter to select a structured reason code. Codes are grouped into three categories:
+
+| Category | Codes |
+|---|---|
+| **Approval** | `APPROVE_STANDARD`, `APPROVE_CONDITIONS`, `APPROVE_EXCEPTION`, `APPROVE_RELATIONSHIP` |
+| **Override / Escalation** | `OVERRIDE_INFO_RESOLVED`, `OVERRIDE_PORTFOLIO`, `OVERRIDE_PRICING`, `OVERRIDE_MANUAL` |
+| **Decline** | `DECLINE_CAT_EXPOSURE`, `DECLINE_LOSS_HISTORY`, `DECLINE_OUTSIDE_APPETITE`, `DECLINE_SIC_INELIGIBLE`, `DECLINE_TIV_LIMIT`, `DECLINE_COMPLIANCE`, `DECLINE_MANUAL` |
 
 ---
 
@@ -109,10 +138,12 @@ Composite = clamp(SIC base score + state modifier + TIV modifier, 0, 100)
 
 | Screen | URL | What it shows |
 |---|---|---|
-| Submission queue | `localhost:8001/` | All submissions, scores, routing badges, filter bar |
-| UW review | `localhost:8001/review/{id}` | Score tiles, composite bar, HITL decision form |
+| Submission queue | `localhost:8001/` | All submissions, scores, routing badges, filter bar, reset button |
+| UW review | `localhost:8001/review/{id}` | Score tiles, composite bar, context-aware decision form |
 | Audit log | `localhost:8001/audit` | Tamper-evident log, integrity status, JSONL export |
 | Insights | `localhost:8001/insights` | STP rate, decline drivers, SIC volume, referral SLA |
+
+The **Reset demo** button on the queue page truncates all audit files and re-seeds the six sample submissions in one click.
 
 ---
 
@@ -121,15 +152,15 @@ Composite = clamp(SIC base score + state modifier + TIV modifier, 0, 100)
 ```
 aria-underwriting/
 ├── aria/
-│   ├── models.py       # Pydantic v2 data models
+│   ├── models.py       # Pydantic v2 data models (SubmissionEvent, CompositeScore, UWDecision…)
 │   ├── scorer.py       # Deterministic scoring engine
 │   ├── router.py       # Submission routing + downstream dispatch
 │   ├── audit.py        # Tamper-evident JSONL audit logger
-│   ├── db.py           # SQLite submission store
+│   ├── db.py           # SQLite submission store + 6 seed samples
 │   ├── llm.py          # LLM client (OpenAI / Anthropic)
-│   └── server.py       # FastAPI app, UI routes, data helpers
+│   └── server.py       # FastAPI app, UI routes, POST /reset
 ├── hitl/
-│   ├── review.py       # Browser HITL router (GET/POST /review/{id})
+│   ├── review.py       # Browser HITL router — all decision forms and override logic
 │   └── card.py         # Terminal Rich card with interactive prompt
 ├── config/
 │   ├── appetite_config.yaml   # SIC tiers and ambiguous SIC list
@@ -138,8 +169,8 @@ aria-underwriting/
 │   └── llm_config.yaml        # LLM provider and model selection
 ├── templates/
 │   ├── base.html       # Shared sidebar layout, CSS, JS countdown
-│   ├── queue.html      # Submission queue
-│   ├── review.html     # UW review card
+│   ├── queue.html      # Submission queue with reset button
+│   ├── review.html     # UW review card (all five decision states)
 │   ├── audit.html      # Audit log + integrity banner
 │   └── insights.html   # Analytics and governance
 ├── tests/
@@ -162,11 +193,11 @@ cp .env.example .env          # add your API key
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -e .
 
-# Launch (resets data, submits 5 samples, opens browser)
+# Launch (resets data, submits 6 samples, opens browser)
 .venv/bin/python run_demo.py --demo
 ```
 
-The demo submits five representative submissions covering each routing path:
+The demo submits six representative submissions covering every routing path:
 
 | Submission | SIC | State | TIV | Score | Routing |
 |---|---|---|---|---|---|
@@ -174,7 +205,10 @@ The demo submits five representative submissions covering each routing path:
 | Patel Food Markets | 5411 (A) | TX inland | $300K | 100 | auto_pass |
 | Harbor View Lounge | 5813 (C) | FL coastal | $1.5M | 10 | auto_decline |
 | Apex Cycle & Powersports | 5571 (C) | GA | $400K | 55 | referral |
+| Apex Business Services | 7389 ambiguous | IL | — | — | **hitl_required** |
 | Greenberg Builders | 1521 (C) | NY | $4.0M | 15 | auto_decline |
+
+Apex Business Services uses SIC 7389 (miscellaneous business services — an ambiguous code) with 82% classifier confidence, which is below the 90% threshold required for ambiguous codes. Scoring is skipped; the submission goes directly to the manual review queue.
 
 ---
 
