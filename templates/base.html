@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="refresh" content="15">
+  <meta http-equiv="refresh" content="10">
   <title>Aria — {% block title %}{% endblock %}</title>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -49,7 +49,7 @@
     .content{padding:24px;flex:1}
 
     /* ── Metric cards ── */
-    .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
     .metric-card{background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);
                  border-radius:8px;padding:16px 20px}
     .metric-value{font-size:2rem;font-weight:700;line-height:1;color:#1a1a18}
@@ -235,7 +235,7 @@
       </div>
       <div class="topbar-right">
         <span class="live-pill">Aria live</span>
-        <span class="refresh-info">Refreshes in <span id="cd">15</span>s</span>
+        <span class="refresh-info">Refreshes in <span id="cd">10</span>s</span>
       </div>
     </div>
     <div class="content">
@@ -245,7 +245,7 @@
 
 </div>
 <script>
-  let s=15;const el=document.getElementById('cd');
+  let s=10;const el=document.getElementById('cd');
   if(el)setInterval(()=>{if(s>0){s--;el.textContent=s;}},1000);
 </script>
 </body>

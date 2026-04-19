@@ -107,9 +107,9 @@ def _routing_badge(status: str, routing: str | None, decision: dict | None) -> d
     if routing == "referral":
         if status in ("w3_triggered", "w3_pending_retry"):
             return {"cls": "badge-green", "icon": "✓", "label": "UW Approved"}
-        return {"cls": "badge-amber", "icon": "", "label": "Referral pending"}
+        return {"cls": "badge-amber", "icon": "", "label": "Pending Review"}
     if status == "referral_pending":   # HITLRequired — no score computed
-        return {"cls": "badge-purple", "icon": "⚠", "label": "HITL Required"}
+        return {"cls": "badge-amber", "icon": "", "label": "Pending Review"}
     return {"cls": "badge-blue", "icon": "", "label": status}
 
 
@@ -204,13 +204,26 @@ def _build_queue_rows(db: SubmissionDB, audit: AuditLogger, filter_val: str) -> 
 
 
 def _build_metrics(db: SubmissionDB, audit: AuditLogger) -> dict:
-    all_scores = audit.read_scores()
-    total = len(all_scores)
-    auto_pass = sum(1 for s in all_scores if s.get("routing") == "auto_pass")
-    auto_decline = sum(1 for s in all_scores if s.get("routing") == "auto_decline")
-    referral_pending = len(db.list_submissions(status="referral_pending", limit=200))
-    return {"total": total, "auto_pass": auto_pass,
-            "referral_pending": referral_pending, "auto_decline": auto_decline}
+    """Effective outcome metrics — reflect final state after any UW overrides."""
+    subs = db.list_submissions(limit=200)
+    all_decisions = audit.read_decisions()
+
+    total    = len(subs)
+    approved = sum(1 for s in subs if s["status"] in ("w3_triggered", "w3_pending_retry"))
+    pending  = sum(1 for s in subs if s["status"] == "referral_pending")
+    declined = sum(1 for s in subs if s["status"] == "declined")
+    overrides = sum(1 for d in all_decisions
+                    if "Override of auto_" in (d.get("notes") or ""))
+
+    return {
+        "total": total,
+        "approved": approved,
+        "pending": pending,
+        "declined": declined,
+        "overrides": overrides,
+        # kept for any legacy template references
+        "referral_pending": pending,
+    }
 
 
 def _build_audit_rows(audit: AuditLogger) -> tuple[list[dict], list[dict], dict]:
@@ -290,8 +303,11 @@ def _build_insights(db: SubmissionDB, audit: AuditLogger) -> dict:
     avg_score = round(sum(s.get("total", 0) for s in all_scores) / total, 1) if total else 0.0
     uw_saved_mins = (auto_pass_count + auto_decline_count) * 8
     uw_time_saved = f"{uw_saved_mins // 60}h {uw_saved_mins % 60}m"
-    overrides = sum(1 for d in all_decisions if d.get("choice") == "override")
-    override_rate = f"{round(overrides / referral_count * 100)}%" if referral_count else "—"
+    # Override rate = automated decisions reversed by UW / total decisions made
+    auto_overrides = sum(1 for d in all_decisions
+                         if "Override of auto_" in (d.get("notes") or ""))
+    total_decisions = len(all_decisions)
+    override_rate = f"{round(auto_overrides / total_decisions * 100)}%" if total_decisions else "—"
 
     # Decline drivers
     decline_scores = [s for s in all_scores if s.get("routing") == "auto_decline"]
@@ -340,7 +356,7 @@ def _build_insights(db: SubmissionDB, audit: AuditLogger) -> dict:
     sla_total = len(referral_sla)
     sla_on_track = sum(1 for s in referral_sla if "OVERDUE" not in s["sla_label"])
     llm = llm_status()
-    override_rate_pct = round(overrides / referral_count * 100) if referral_count else None
+    override_rate_pct = round(auto_overrides / total_decisions * 100) if total_decisions else None
 
     governance = {
         "audit_clean": total_tampered == 0,

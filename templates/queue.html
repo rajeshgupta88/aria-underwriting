@@ -10,16 +10,20 @@
     <div class="metric-label">Total submissions</div>
   </div>
   <div class="metric-card">
-    <div class="metric-value" style="color:#1D9E75">{{ metrics.auto_pass }}</div>
-    <div class="metric-label">Auto-passed</div>
+    <div class="metric-value" style="color:#1D9E75">{{ metrics.approved }}</div>
+    <div class="metric-label">Approved<br><span style="font-size:10px;color:#6b6a65">effective (incl. overrides)</span></div>
   </div>
   <div class="metric-card">
-    <div class="metric-value" style="color:#EF9F27">{{ metrics.referral_pending }}</div>
-    <div class="metric-label">Referrals pending</div>
+    <div class="metric-value" style="color:#EF9F27">{{ metrics.pending }}</div>
+    <div class="metric-label">Pending review</div>
   </div>
   <div class="metric-card">
-    <div class="metric-value" style="color:#E24B4A">{{ metrics.auto_decline }}</div>
-    <div class="metric-label">Auto-declined</div>
+    <div class="metric-value" style="color:#E24B4A">{{ metrics.declined }}</div>
+    <div class="metric-label">Declined<br><span style="font-size:10px;color:#6b6a65">effective (incl. overrides)</span></div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value" style="color:#7F77DD">{{ metrics.overrides }}</div>
+    <div class="metric-label">UW overrides<br><span style="font-size:10px;color:#6b6a65">auto decisions reversed</span></div>
   </div>
 </div>
 

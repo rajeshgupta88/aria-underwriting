@@ -65,9 +65,9 @@ def _routing_badge(status: str, routing: str | None, decision: dict | None) -> d
     if routing == "referral":
         if status in ("w3_triggered", "w3_pending_retry"):
             return {"cls": "badge-green", "icon": "✓", "label": "UW Approved"}
-        return {"cls": "badge-amber", "icon": "", "label": "Referral pending"}
-    if status == "referral_pending":
-        return {"cls": "badge-purple", "icon": "⚠", "label": "HITL Required"}
+        return {"cls": "badge-amber", "icon": "", "label": "Pending Review"}
+    if status == "referral_pending":   # HITLRequired — no score computed
+        return {"cls": "badge-amber", "icon": "", "label": "Pending Review"}
     return {"cls": "badge-blue", "icon": "", "label": status}
 
 
