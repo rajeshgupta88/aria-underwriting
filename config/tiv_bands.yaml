@@ -1,0 +1,63 @@
+metadata:
+  version: "1.0.0"
+  effective_date: "2024-01-01"
+  carrier: "Aria Specialty Insurance"
+  description: >
+    Total Insured Value (TIV) bands applied as score modifiers after
+    SIC tier and state modifier. Bands are mutually exclusive and
+    evaluated in order — first match wins.
+    modifier values are additive points on the 0-100 appetite score.
+
+bands:
+  - id: micro
+    label: "Micro (<$250K)"
+    min: null          # no lower bound
+    max: 250_000
+    modifier: +15
+    description: >
+      Very small accounts; low severity exposure. Strong appetite —
+      high-volume, low-touch segment aligns with BOP appetite.
+
+  - id: small
+    label: "Small ($250K–$500K)"
+    min: 250_000
+    max: 500_000
+    modifier: +10
+    description: >
+      Core small commercial sweet spot. Preferred TIV range
+      for standard BOP and GL placements.
+
+  - id: mid
+    label: "Mid ($500K–$2M)"
+    min: 500_000
+    max: 2_000_000
+    modifier: 0
+    description: >
+      Standard commercial range. No score adjustment — baseline
+      appetite applies from SIC tier and state modifier alone.
+
+  - id: large
+    label: "Large ($2M–$5M)"
+    min: 2_000_000
+    max: 5_000_000
+    modifier: -15
+    description: >
+      Above standard small-commercial threshold. Requires additional
+      property schedule and loss runs (5 years). Referral required
+      for Tier B and C accounts.
+
+  - id: jumbo
+    label: "Jumbo (>$5M)"
+    min: 5_000_000
+    max: null          # no upper bound
+    modifier: -25
+    description: >
+      Outside standard small-commercial appetite. Requires senior
+      underwriter sign-off. Surplus lines placement likely.
+
+missing_tiv_behavior:
+  modifier: 0
+  action: log_warning
+  message: >
+    TIV not provided — no TIV modifier applied. Underwriter should
+    request property schedule before binding.

@@ -1,0 +1,21 @@
+# LLM provider configuration for Aria
+# Change 'provider' to switch between openai and anthropic.
+# All other settings are picked up automatically.
+
+provider: openai          # options: openai | anthropic
+
+openai:
+  model: gpt-4o
+  temperature: 0.0        # deterministic — appetite decisions must be reproducible
+  max_tokens: 512
+  timeout_seconds: 15
+
+anthropic:
+  model: claude-sonnet-4-20250514
+  temperature: 0.0
+  max_tokens: 512
+  timeout_seconds: 15
+
+# Aria's scoring is deterministic (YAML lookup) — no LLM involved there.
+# The LLM client is used only for narrative rationale generation.
+# Initialised at startup and injected where needed.

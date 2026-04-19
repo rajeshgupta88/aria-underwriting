@@ -1,0 +1,61 @@
+metadata:
+  version: "1.0.0"
+  effective_date: "2024-01-01"
+  carrier: "Aria Specialty Insurance"
+  lines_of_business:
+    - General Liability
+    - Commercial Property
+    - Business Owners Policy
+
+tier_definitions:
+  A:
+    base_score: 90
+    description: "Preferred risk — strong appetite, standard pricing applies"
+  B:
+    base_score: 70
+    description: "Acceptable risk — moderate appetite, may require additional underwriting info"
+  C:
+    base_score: 40
+    description: "Marginal risk — limited appetite, referral to senior underwriter required"
+  X:
+    base_score: 0
+    description: "Hard decline — outside appetite, do not quote under any circumstances"
+
+sic_tiers:
+  # ── Tier A — Preferred ─────────────────────────────────────
+  "5812": A   # Eating places (restaurants, cafes, fast food)
+  "7011": A   # Hotels and motels
+  "5999": A   # Retail stores — miscellaneous
+  "7389": A   # Services — miscellaneous business services
+  "5411": A   # Grocery stores
+  "8049": A   # Offices and clinics of other health practitioners
+
+  # ── Tier B — Acceptable ────────────────────────────────────
+  "7514": B   # Passenger car rental
+  "5511": B   # Motor vehicle dealers — new cars
+  "7521": B   # Automobile parking
+  "5251": B   # Hardware stores
+  "5912": B   # Drug stores and proprietary stores
+  "7941": B   # Professional sports clubs and promoters
+
+  # ── Tier C — Marginal ──────────────────────────────────────
+  "5813": C   # Drinking places (bars, taverns, nightclubs)
+  "7999": C   # Amusement and recreation services NEC
+  "5571": C   # Motorcycle dealers
+  "1731": C   # Electrical work contractors
+  "1521": C   # General building contractors — residential
+
+  # ── Tier X — Hard Decline ──────────────────────────────────
+  "9999": X   # Unclassifiable establishments
+  "5921": X   # Liquor stores
+  "7993": X   # Video game arcades / gambling devices
+  "1711": X   # Plumbing, heating, air-conditioning contractors
+  "4813": X   # Telephone communications (no radio telephone)
+
+# SIC codes where classifier confidence must exceed 0.90 before
+# accepting the tier assignment; below threshold triggers human review.
+ambiguous_sics:
+  - "7389"   # Misc business services — wide variance (staffing, security, cleaning, etc.)
+  - "7999"   # Amusement/recreation — ranges from yoga studios to go-kart tracks
+  - "1521"   # General building contractors — scope and hazard vary significantly
+  - "7011"   # Hotels/motels — boutique B&B vs. extended-stay has very different risk profile

@@ -1,0 +1,67 @@
+metadata:
+  version: "1.0.0"
+  effective_date: "2024-01-01"
+  carrier: "Aria Specialty Insurance"
+  description: >
+    Score modifiers applied after the SIC tier base score.
+    Positive values increase the appetite score; negative values decrease it.
+    coastal_modifier replaces (does not stack with) standard when applicable.
+
+modifiers:
+  CA:
+    standard: -15
+    coastal_modifier: -20
+    notes: "Wildfire exposure statewide; coastal adds earthquake/tsunami risk"
+  FL:
+    standard: -25
+    coastal_modifier: -30
+    notes: "Hurricane and flood exposure; Assignment of Benefits litigation environment"
+  TX:
+    standard: +5
+    coastal_modifier: -20
+    notes: "Favorable inland market; Gulf Coast coast subject to hurricane CAT"
+  NY:
+    standard: -10
+    notes: "Elevated litigation costs and labor law exposure (scaffold law)"
+  IL:
+    standard: 0
+    notes: "Neutral — standard market conditions"
+  PA:
+    standard: +5
+    notes: "Favorable regulatory environment and loss history"
+  OH:
+    standard: +5
+    notes: "Stable market; preferred for BOP accounts"
+  GA:
+    standard: +5
+    notes: "Growing market; favorable loss trends outside metro Atlanta"
+  NC:
+    standard: +5
+    coastal_modifier: -15
+    notes: "Inland favorable; Outer Banks and coastal plain carry hurricane exposure"
+  SC:
+    standard: 0
+    coastal_modifier: -10
+    notes: "Neutral inland; coastal areas subject to named-storm surge"
+  # All remaining states default to 0 (no modifier)
+  DEFAULT:
+    standard: 0
+
+special_rules:
+  FL_moratorium_zips:
+    description: >
+      These ZIP codes are under an active underwriting moratorium due to
+      recent CAT activity. Submissions from these ZIPs are auto-declined
+      regardless of SIC tier or TIV band.
+    zips:
+      - "33149"   # Key Biscayne, Miami-Dade
+      - "34228"   # Longboat Key, Sarasota
+      - "32459"   # Santa Rosa Beach, Walton County
+      - "32136"   # Flagler Beach, Flagler County
+      - "33050"   # Marathon, Monroe County (Florida Keys)
+
+  TX_surplus_lines:
+    description: >
+      Submissions with TIV exceeding this threshold must be placed on a
+      surplus lines basis and require separate underwriter approval.
+    tiv_threshold_usd: 3_000_000
