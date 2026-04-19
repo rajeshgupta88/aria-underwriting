@@ -112,13 +112,16 @@ Composite = clamp(SIC base score + state modifier + TIV modifier, 0, 100)
 
 The browser review card (`/review/{id}`) presents a different form depending on the submission state:
 
-| State | What the UW sees |
-|---|---|
-| **HITLRequired** | Amber warning banner explaining the confidence shortfall; manual approve (with score) or decline form |
-| **Referral pending** | Full Approve / Override (adjusted score) / Decline panel |
-| **Auto-passed** | Read-only score card + collapsible "Override — Decline" form with mandatory notes |
-| **Auto-declined** | Read-only score card + collapsible "Override — Approve" form with mandatory override score and notes |
-| **Decision recorded** | Read-only outcome panel; override decisions are labelled `[Override of auto_pass/auto_decline]` |
+Both HITLRequired and scored referrals show the same **"Pending Review"** badge in the queue — they both need the same UW action. The distinction (why it's pending) is visible only on the review page itself.
+
+| State | Queue badge | What the UW sees on the review page |
+|---|---|---|
+| **HITLRequired** | Pending Review (amber) | Amber warning banner explaining the confidence shortfall; manual approve (with score) or decline form |
+| **Referral** | Pending Review (amber) | Full Approve / Override (adjusted score) / Decline panel |
+| **Auto-passed** | Auto-passed (green) | Read-only score card + collapsible "Override — Decline" form with mandatory notes |
+| **Auto-declined** | Auto-declined (red) | Read-only score card + collapsible "Override — Approve" form with mandatory override score and notes |
+| **UW override applied** | ↑ Override · Approved or ↓ Override · Declined (bold border badge) | Read-only outcome panel showing reviewer, reason code, and notes |
+| **Decision recorded** | ✓ UW Approved / ✗ UW Declined (green/red) | Read-only outcome panel |
 
 Every decision — including automated overrides — is logged to `data/decisions.jsonl` with a SHA-256 integrity hash and a snapshot of the composite score at the time of decision.
 
@@ -138,12 +141,35 @@ All decision forms require the underwriter to select a structured reason code. C
 
 | Screen | URL | What it shows |
 |---|---|---|
-| Submission queue | `localhost:8001/` | All submissions, scores, routing badges, filter bar, reset button |
-| UW review | `localhost:8001/review/{id}` | Score tiles, composite bar, context-aware decision form |
-| Audit log | `localhost:8001/audit` | Tamper-evident log, integrity status, JSONL export |
-| Insights | `localhost:8001/insights` | STP rate, decline drivers, SIC volume, referral SLA |
+| Submission queue | `localhost:8001/` | Five metric cards (total, approved, pending, declined, overrides), filter bar, reset button, sortable table |
+| UW review | `localhost:8001/review/{id}` | Score tiles, composite bar, context-aware decision form with structured reason codes |
+| Audit log | `localhost:8001/audit` | Tamper-evident log, per-record SHA-256 integrity status, JSONL export |
+| Insights | `localhost:8001/insights` | Straight-through rate, average score, UW time saved, override rate, decline drivers, SIC mix, SLA clock, governance health |
 
 The **Reset demo** button on the queue page truncates all audit files and re-seeds the six sample submissions in one click.
+
+### Queue metric cards
+
+| Card | What it counts |
+|---|---|
+| **Total** | All submissions in the database |
+| **Approved** | Submissions currently in `w3_triggered` or `w3_pending_retry` status — includes auto-passes and UW-approved referrals/overrides |
+| **Pending review** | Submissions waiting for an underwriter decision (`referral_pending`) |
+| **Declined** | Submissions with `declined` status — includes auto-declines and UW-declined overrides |
+| **UW overrides** | Count of decisions where an underwriter reversed an automated outcome (auto-pass → declined, or auto-decline → approved) |
+
+### Insights page explained
+
+| Metric | What it means |
+|---|---|
+| **Straight-through rate** | % of submissions auto-approved or auto-declined with no human review (higher = more automation) |
+| **Average risk score** | Mean composite score (0–100) across scored submissions; Aria auto-passes at ≥ 65 |
+| **Estimated UW time saved** | Automated submissions × 8 min/submission vs. full manual review |
+| **Override rate** | % of all decisions that reversed an automated outcome — high values warrant governance attention |
+| **Why did Aria decline?** | Breakdown of root causes (SIC Tier X, state modifier, jumbo TIV) across auto-declined submissions |
+| **Submission mix by SIC** | Volume per SIC code; bar colour shows Aria's risk tier (green=Preferred, amber=Acceptable/Marginal, red=Hard decline) |
+| **Pending review — SLA clock** | Open referrals and HITL items with time remaining on the 24-hour SLA; red = under 1 hour or overdue |
+| **Governance & system health** | Audit trail integrity check, SLA on-track count, total decisions logged, LLM provider and API key status |
 
 ---
 
