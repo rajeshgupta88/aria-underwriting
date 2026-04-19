@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="15">
+  <title>Aria — {% block title %}{% endblock %}</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:13px;
+         line-height:1.5;color:#1a1a18;background:#F5F4F0}
+
+    /* ── Layout ── */
+    .layout{display:grid;grid-template-columns:200px 1fr;
+            min-height:100vh;max-width:1100px;margin:0 auto;
+            box-shadow:0 0 0 1px rgba(0,0,0,0.07)}
+
+    /* ── Sidebar ── */
+    .sidebar{background:#FFFFFF;border-right:1px solid rgba(0,0,0,0.10);
+             display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+    .brand{padding:20px 16px 16px;border-bottom:1px solid rgba(0,0,0,0.07)}
+    .brand-name{font-size:15px;font-weight:600;color:#1a1a18;letter-spacing:-0.02em}
+    .brand-sub{font-size:11px;color:#6b6a65;margin-top:2px}
+    nav{padding:10px 0;flex:1}
+    .nav-link{display:flex;align-items:center;justify-content:space-between;
+              padding:8px 16px;text-decoration:none;color:#1a1a18;font-size:13px;
+              border-left:2px solid transparent;transition:background .1s}
+    .nav-link:hover{background:#F1EFE8}
+    .nav-link.active{background:#F1EFE8;border-left-color:#7F77DD;color:#3C3489;font-weight:500}
+    .nav-badge{background:#EEEDFE;color:#3C3489;border-radius:10px;
+               padding:1px 7px;font-size:11px;font-weight:600}
+    .nav-label{flex:1}
+    .llm-pill{padding:12px 16px;border-top:1px solid rgba(0,0,0,0.07);
+              font-size:11px;color:#6b6a65;display:flex;align-items:center;gap:6px}
+    .llm-pill .dot{font-size:8px;flex-shrink:0}
+
+    /* ── Main panel ── */
+    .main{display:flex;flex-direction:column;min-height:100vh;background:#F5F4F0}
+    .topbar{background:#FFFFFF;border-bottom:1px solid rgba(0,0,0,0.10);
+            padding:12px 24px;display:flex;justify-content:space-between;align-items:center;
+            position:sticky;top:0;z-index:10}
+    .topbar-left .page-title{font-size:15px;font-weight:600;color:#1a1a18}
+    .topbar-left .page-sub{font-size:11px;color:#6b6a65;margin-top:1px}
+    .topbar-right{display:flex;align-items:center;gap:12px}
+    .live-pill{display:inline-flex;align-items:center;gap:5px;
+               background:#E1F5EE;color:#085041;border-radius:10px;
+               padding:3px 10px;font-size:11px;font-weight:600}
+    .live-pill::before{content:"●";font-size:7px;color:#1D9E75}
+    .refresh-info{font-size:11px;color:#6b6a65}
+    .content{padding:24px;flex:1}
+
+    /* ── Metric cards ── */
+    .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .metric-card{background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);
+                 border-radius:8px;padding:16px 20px}
+    .metric-value{font-size:2rem;font-weight:700;line-height:1;color:#1a1a18}
+    .metric-label{font-size:11px;color:#6b6a65;margin-top:4px}
+
+    /* ── Table ── */
+    .table-wrap{background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);
+                border-radius:8px;overflow:hidden}
+    .data-table{width:100%;border-collapse:collapse}
+    .data-table th{text-align:left;font-size:11px;font-weight:600;
+                   text-transform:uppercase;letter-spacing:.05em;color:#6b6a65;
+                   padding:10px 14px;background:#F1EFE8;
+                   border-bottom:1px solid rgba(0,0,0,0.08)}
+    .data-table td{padding:11px 14px;border-bottom:1px solid rgba(0,0,0,0.05);font-size:13px}
+    .data-table tr:last-child td{border-bottom:none}
+    .data-table tbody tr:hover td{background:#F5F4F0}
+
+    /* ── Badges ── */
+    .badge{display:inline-block;padding:2px 9px;border-radius:10px;
+           font-size:11px;font-weight:600;white-space:nowrap}
+    .badge-green {background:#E1F5EE;color:#085041}
+    .badge-amber {background:#FAEEDA;color:#633806}
+    .badge-red   {background:#FCEBEB;color:#A32D2D}
+    .badge-blue  {background:#E6F1FB;color:#0C447C}
+    .badge-purple{background:#EEEDFE;color:#3C3489}
+
+    /* ── Score bar ── */
+    .score-cell{display:inline-flex;align-items:center;gap:7px}
+    .score-bar{width:52px;height:5px;background:rgba(0,0,0,0.08);
+               border-radius:3px;overflow:hidden;flex-shrink:0}
+    .score-fill{height:5px;border-radius:3px}
+    .score-num{font-weight:600;font-size:13px}
+
+    /* ── Section heading ── */
+    .section-head{font-size:11px;font-weight:700;text-transform:uppercase;
+                  letter-spacing:.06em;color:#6b6a65;margin:24px 0 10px;
+                  padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,0.08)}
+
+    /* ── Filter bar ── */
+    .filter-bar{display:flex;gap:4px;margin-bottom:14px}
+    .filter-btn{padding:5px 14px;border-radius:6px;text-decoration:none;
+                color:#6b6a65;font-size:12px;border:1px solid rgba(0,0,0,0.10);
+                background:#FFFFFF;transition:all .1s}
+    .filter-btn:hover{background:#F1EFE8;color:#1a1a18}
+    .filter-btn.active{background:#F1EFE8;border-color:rgba(0,0,0,0.15);
+                       color:#1a1a18;font-weight:500}
+
+    /* ── Empty state ── */
+    .empty-state{text-align:center;padding:60px 24px;color:#6b6a65}
+    .empty-code{display:inline-block;background:#F1EFE8;color:#3C3489;
+                font-family:monospace;font-size:12px;padding:4px 10px;
+                border-radius:4px;margin-top:8px}
+
+    /* ── Banner ── */
+    .banner{border-radius:6px;padding:10px 16px;margin-bottom:16px;font-size:13px;font-weight:500}
+    .banner-green{background:#E1F5EE;color:#085041;border:1px solid #1D9E7540}
+    .banner-red  {background:#FCEBEB;color:#A32D2D;border:1px solid #E24B4A40}
+
+    /* ── Insight grid ── */
+    .insight-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+    .insight-card{background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);
+                  border-radius:8px;padding:20px}
+    .insight-title{font-size:11px;font-weight:700;text-transform:uppercase;
+                   letter-spacing:.06em;color:#6b6a65;margin-bottom:14px;
+                   padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,0.06)}
+
+    /* ── Bar chart ── */
+    .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+    .bar-label{width:130px;font-size:12px;color:#6b6a65;text-align:right;flex-shrink:0;line-height:1.3}
+    .bar-track{flex:1;height:14px;background:#F1EFE8;border-radius:2px;overflow:hidden}
+    .bar-fill{height:14px;border-radius:2px}
+    .bar-count{width:24px;font-size:12px;color:#6b6a65;text-align:right}
+
+    /* ── KV grid ── */
+    .kv-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:center}
+    .kv-key{font-size:12px;color:#6b6a65;white-space:nowrap}
+    .kv-val{font-size:13px;font-weight:500;color:#1a1a18}
+
+    /* ── Review tiles ── */
+    .tile-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+    .tile{background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);
+          border-radius:8px;padding:20px;text-align:center}
+    .tile-val{font-size:2.2rem;font-weight:700;line-height:1;margin-bottom:6px}
+    .tile-lbl{font-size:11px;color:#6b6a65;line-height:1.4}
+    .composite-row{background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);
+                   border-radius:8px;padding:14px 20px;display:flex;
+                   align-items:center;gap:16px;margin-bottom:20px}
+    .comp-score{font-size:1.4rem;font-weight:700;white-space:nowrap;flex-shrink:0}
+    .comp-reason{flex:1;font-size:12px;color:#6b6a65;font-style:italic}
+    .comp-band{font-size:11px;color:#6b6a65;white-space:nowrap}
+
+    /* ── Decision form ── */
+    .decision-section{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+    details.decision-panel{border:1px solid rgba(0,0,0,0.10);border-radius:8px;overflow:hidden}
+    details.decision-panel summary{
+      padding:12px 16px;cursor:pointer;font-weight:500;font-size:13px;
+      list-style:none;display:flex;align-items:center;gap:8px;
+      background:#FFFFFF;border-bottom:1px solid transparent;user-select:none}
+    details.decision-panel summary::-webkit-details-marker{display:none}
+    details.decision-panel[open] summary{border-bottom-color:rgba(0,0,0,0.08);background:#F5F4F0}
+    details.decision-panel summary.approve{color:#085041}
+    details.decision-panel summary.override{color:#633806}
+    details.decision-panel summary.decline{color:#A32D2D}
+    .decision-form{padding:16px}
+    .field-label{display:block;font-size:12px;font-weight:600;color:#6b6a65;margin-bottom:4px}
+    .field-label+input,.field-label+textarea{margin-bottom:12px}
+    input[type=text],input[type=number]{width:100%;padding:6px 10px;
+      border:1px solid rgba(0,0,0,0.15);border-radius:6px;font-size:13px;
+      font-family:inherit;background:#FFFFFF}
+    input[type=text]:focus,input[type=number]:focus{
+      outline:none;border-color:#7F77DD;box-shadow:0 0 0 3px #7F77DD22}
+    .submit-btn{display:inline-block;padding:8px 18px;border:none;border-radius:6px;
+                font-size:13px;font-weight:600;cursor:pointer;margin-top:4px}
+    .btn-green{background:#1D9E75;color:#FFFFFF}
+    .btn-amber{background:#EF9F27;color:#FFFFFF}
+    .btn-red  {background:#E24B4A;color:#FFFFFF}
+    .btn-green:hover{background:#188a65}
+    .btn-amber:hover{background:#d88e20}
+    .btn-red:hover  {background:#c93b3a}
+
+    /* ── Detail grid ── */
+    .detail-grid{display:grid;grid-template-columns:150px 1fr;gap:7px 16px}
+    .detail-grid dt{color:#6b6a65;font-weight:600;font-size:12px;padding-top:1px}
+    .detail-grid dd{margin:0;font-size:13px}
+
+    /* ── SLA pill ── */
+    .sla-pill{display:inline-flex;align-items:center;gap:5px;
+              border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600}
+    .sla-amber{background:#FAEEDA;color:#633806}
+    .sla-red  {background:#FCEBEB;color:#A32D2D}
+    .sla-green{background:#E1F5EE;color:#085041}
+
+    /* ── Outcome panel ── */
+    .outcome-panel{background:#F5F4F0;border:1px solid rgba(0,0,0,0.10);
+                   border-radius:8px;padding:16px 20px}
+
+    a{color:inherit;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .muted{color:#6b6a65}
+    .mono{font-family:monospace;font-size:12px}
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name">Aria</div>
+      <div class="brand-sub">Appetite &amp; Risk Intelligence</div>
+    </div>
+    <nav>
+      <a href="/" class="nav-link{% if current_route == '/' %} active{% endif %}">
+        <span class="nav-label">Submission queue</span>
+        {% if nav_counts.referral_pending > 0 %}<span class="nav-badge">{{ nav_counts.referral_pending }}</span>{% endif %}
+      </a>
+      <a href="/review" class="nav-link{% if current_route == '/review' %} active{% endif %}">
+        <span class="nav-label">UW review</span>
+        {% if nav_counts.referral_pending > 0 %}<span class="nav-badge">{{ nav_counts.referral_pending }}</span>{% endif %}
+      </a>
+      <a href="/audit" class="nav-link{% if current_route == '/audit' %} active{% endif %}">
+        <span class="nav-label">Audit log</span>
+      </a>
+      <a href="/insights" class="nav-link{% if current_route == '/insights' %} active{% endif %}">
+        <span class="nav-label">Insights</span>
+      </a>
+    </nav>
+    <div class="llm-pill">
+      <span class="dot" style="color:{% if llm.api_key_set %}#1D9E75{% else %}#EF9F27{% endif %}">●</span>
+      <span>{{ llm.provider }} · {{ llm.model[:12] }}</span>
+    </div>
+  </aside>
+
+  <!-- ── Main panel ── -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title">{{ page_title }}</div>
+        <div class="page-sub">Small commercial BOP / GL</div>
+      </div>
+      <div class="topbar-right">
+        <span class="live-pill">Aria live</span>
+        <span class="refresh-info">Refreshes in <span id="cd">15</span>s</span>
+      </div>
+    </div>
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+</div>
+<script>
+  let s=15;const el=document.getElementById('cd');
+  if(el)setInterval(()=>{if(s>0){s--;el.textContent=s;}},1000);
+</script>
+</body>
+</html>

@@ -1,295 +1,161 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aria — Appetite Review · {{ event.submission_id }}</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
+{% extends "base.html" %}
+{% block title %}UW review · {{ event.submission_id }}{% endblock %}
 
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      color: #24292f;
-      background: #ffffff;
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 32px 24px 64px;
-    }
+{% block content %}
 
-    /* ── Header ── */
-    .header {
-      display: flex;
-      align-items: baseline;
-      gap: 12px;
-      border-bottom: 2px solid #0969da;
-      padding-bottom: 12px;
-      margin-bottom: 24px;
-    }
-    .header h1 { font-size: 1.2rem; color: #0969da; margin: 0; }
-    .header .sub-id { font-size: 0.8rem; color: #57606a; font-family: monospace; }
-
-    /* ── SLA banner ── */
-    .sla-banner {
-      background: #fff8c5;
-      border: 1px solid #d4a017;
-      border-left: 4px solid #d4a017;
-      border-radius: 4px;
-      padding: 8px 16px;
-      margin-bottom: 20px;
-      font-size: 0.85rem;
-      color: #7d4e00;
-    }
-    .sla-banner strong { font-size: 1rem; }
-
-    /* ── Section headings ── */
-    h2 {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #57606a;
-      margin: 24px 0 8px;
-      border-bottom: 1px solid #d0d7de;
-      padding-bottom: 4px;
-    }
-
-    /* ── Score table ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9rem;
-    }
-    table th {
-      text-align: left;
-      font-weight: 600;
-      color: #57606a;
-      padding: 6px 8px;
-      border-bottom: 1px solid #d0d7de;
-      background: #f6f8fa;
-    }
-    table td {
-      padding: 7px 8px;
-      border-bottom: 1px solid #eaeef2;
-    }
-    table tr:last-child td { border-bottom: none; }
-    .pts { text-align: right; font-family: monospace; }
-    .neg { color: #cf222e; }
-    .pos { color: #1a7f37; }
-    .muted { color: #57606a; }
-    .total-row td { font-weight: 700; font-size: 1rem; background: #f6f8fa; }
-    .score-value { font-size: 1.3rem; color: #9a6700; }
-
-    /* ── Routing badge ── */
-    .routing-badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin-left: 6px;
-    }
-    .referral    { background: #fff8c5; color: #7d4e00; border: 1px solid #d4a017; }
-    .auto_pass   { background: #dafbe1; color: #116329; border: 1px solid #56d364; }
-    .auto_decline { background: #ffebe9; color: #82071e; border: 1px solid #f97583; }
-
-    /* ── Detail grid ── */
-    .detail-grid {
-      display: grid;
-      grid-template-columns: 150px 1fr;
-      gap: 6px 16px;
-      padding: 8px 0;
-    }
-    .detail-grid dt { color: #57606a; font-weight: 600; }
-    .detail-grid dd { margin: 0; }
-
-    /* ── Decision form ── */
-    .form-card {
-      border: 1px solid #d0d7de;
-      border-radius: 8px;
-      padding: 20px 24px;
-      background: #f6f8fa;
-    }
-    .radio-group { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 20px; }
-    .radio-label {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-      font-weight: 500;
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid #d0d7de;
-      background: white;
-      transition: border-color .15s;
-    }
-    .radio-label:has(input:checked) { border-color: #0969da; background: #ddf4ff; }
-    .radio-label input { accent-color: #0969da; width: 16px; height: 16px; }
-
-    .form-section { display: none; padding: 12px 0 4px; }
-    .form-section.visible { display: block; }
-
-    label.field-label { display: block; font-weight: 600; margin-bottom: 4px; color: #24292f; }
-    input[type=text], input[type=number] {
-      width: 100%;
-      padding: 6px 10px;
-      border: 1px solid #d0d7de;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      font-family: inherit;
-      background: white;
-      margin-bottom: 12px;
-    }
-    input[type=text]:focus, input[type=number]:focus {
-      outline: none;
-      border-color: #0969da;
-      box-shadow: 0 0 0 3px #0969da22;
-    }
-
-    .reviewer-field { margin-top: 16px; border-top: 1px solid #d0d7de; padding-top: 16px; }
-
-    .submit-btn {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      background: #0969da;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 20px;
-    }
-    .submit-btn:hover { background: #0860c8; }
-
-    .routing-reason {
-      font-size: 0.85rem;
-      color: #57606a;
-      font-style: italic;
-      margin-top: 6px;
-    }
-  </style>
-</head>
-<body>
-
-  <div class="header">
-    <h1>Aria — Appetite Review</h1>
-    <span class="sub-id">{{ event.submission_id }}</span>
+{# ── Back link + header row ── #}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+  <div>
+    <a href="/" style="font-size:12px;color:#6b6a65">← Back to queue</a>
+    <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:17px;font-weight:700;color:#1a1a18">{{ event.named_insured }}</span>
+      {% if status == 'declined' %}
+        <span class="badge badge-red">Declined</span>
+      {% elif score.routing == 'auto_pass' %}
+        <span class="badge badge-green">Auto-passed</span>
+      {% elif score.routing == 'auto_decline' %}
+        <span class="badge badge-red">Auto-declined</span>
+      {% elif score.routing == 'referral' and status == 'referral_pending' %}
+        <span class="badge badge-amber">Referral pending</span>
+      {% elif score.routing == 'referral' and status in ['w3_triggered','w3_pending_retry'] %}
+        <span class="badge badge-green">UW approved</span>
+      {% else %}
+        <span class="badge badge-blue">{{ status }}</span>
+      {% endif %}
+    </div>
+    <div style="font-size:12px;color:#6b6a65;margin-top:3px">{{ event.submission_id }}</div>
   </div>
+  <span class="sla-pill {{ sla_css }}">⏱ {{ sla_label }}</span>
+</div>
 
-  <div class="sla-banner">
-    ⏱ <strong>SLA: {{ sla_hours }}h</strong> from {{ scored_at }} — decision required by underwriter
+{# ── Score tiles ── #}
+<div class="tile-row">
+  <div class="tile">
+    <div class="tile-val" style="color:{{ sic_color }}">{{ score.sic.base_score }}</div>
+    <div class="tile-lbl">SIC {{ score.sic.sic_code }} {{ event.sic_description }}<br>Tier {{ score.sic.tier }}</div>
   </div>
+  <div class="tile">
+    <div class="tile-val" style="color:{{ state_color }}">
+      {% if score.state.modifier >= 0 %}+{% endif %}{{ score.state.modifier }}
+    </div>
+    <div class="tile-lbl">State: {{ score.state.state }}{% if score.state.is_coastal %} (coastal){% endif %}</div>
+  </div>
+  <div class="tile">
+    <div class="tile-val" style="color:{{ tiv_color }}">
+      {% if score.tiv.modifier >= 0 %}+{% endif %}{{ score.tiv.modifier }}
+    </div>
+    <div class="tile-lbl">{{ score.tiv.band_label }}<br>{{ tiv_display }}</div>
+  </div>
+</div>
 
-  <!-- ── Score card ── -->
-  <h2>Score Breakdown</h2>
-  <table>
-    <tr>
-      <th>Component</th>
-      <th class="pts">Points</th>
-    </tr>
-    <tr>
-      <td>SIC {{ score.sic.sic_code }} — {{ event.sic_description }} &nbsp;<span class="muted">[Tier {{ score.sic.tier }}]</span></td>
-      <td class="pts">{{ score.sic.base_score }}</td>
-    </tr>
-    <tr>
-      <td>
-        State: {{ score.state.state }}{% if score.state.is_coastal %} <span class="muted">(coastal)</span>{% endif %}
-      </td>
-      <td class="pts {% if score.state.modifier < 0 %}neg{% elif score.state.modifier > 0 %}pos{% else %}muted{% endif %}">
-        {% if score.state.modifier >= 0 %}+{% endif %}{{ score.state.modifier }}
-      </td>
-    </tr>
-    <tr>
-      <td>TIV: {{ score.tiv.band_label }}{% if score.tiv.missing %} <span class="muted">[missing]</span>{% endif %}</td>
-      <td class="pts {% if score.tiv.modifier < 0 %}neg{% elif score.tiv.modifier > 0 %}pos{% else %}muted{% endif %}">
-        {% if score.tiv.modifier >= 0 %}+{% endif %}{{ score.tiv.modifier }}
-      </td>
-    </tr>
-    <tr class="total-row">
-      <td>
-        Composite Score
-        <span class="routing-badge {{ score.routing }}">{{ score.routing.upper().replace('_', ' ') }}</span>
-      </td>
-      <td class="pts"><span class="score-value">{{ score.total }}</span></td>
-    </tr>
-  </table>
-  <p class="routing-reason">{{ score.routing_reason }}</p>
+{# ── Composite bar ── #}
+<div class="composite-row">
+  <span class="comp-score" style="color:{{ composite_color }}">COMPOSITE&nbsp;&nbsp;{{ score.total }}</span>
+  <span class="comp-reason">{{ score.routing_reason }}</span>
+  <span class="comp-band">
+    {% if score.routing == 'auto_pass' %}Auto-pass band ≥65
+    {% elif score.routing == 'referral' %}Referral band 35–64
+    {% else %}Decline band &lt;35{% endif %}
+  </span>
+</div>
 
-  <!-- ── Submission detail ── -->
-  <h2>Submission Detail</h2>
+{# ── Submission details ── #}
+<div style="background:#FFFFFF;border:1px solid rgba(0,0,0,0.10);border-radius:8px;padding:20px;margin-bottom:20px">
+  <div class="section-head" style="margin-top:0">Submission detail</div>
   <dl class="detail-grid">
-    <dt>Named Insured</dt>   <dd><strong>{{ event.named_insured }}</strong></dd>
-    <dt>SIC Code</dt>        <dd>{{ event.sic_code }} — {{ event.sic_description }}</dd>
-    <dt>SIC Confidence</dt>  <dd>{{ "%.0f"|format(event.sic_confidence * 100) }}%</dd>
-    <dt>Writing State</dt>   <dd>{{ event.writing_state }}</dd>
-    <dt>Premises ZIP</dt>    <dd>{{ event.premises_zip }}</dd>
+    <dt>Named insured</dt>   <dd><strong>{{ event.named_insured }}</strong></dd>
+    <dt>Producer</dt>        <dd class="muted">—</dd>
+    <dt>Writing state</dt>   <dd>{{ event.writing_state }} · {{ event.premises_zip }}</dd>
     <dt>TIV</dt>             <dd>{{ tiv_display }}</dd>
-    <dt>PC Account</dt>      <dd>{{ event.pc_account_id }}</dd>
+    <dt>PC account</dt>      <dd class="mono">{{ event.pc_account_id }}</dd>
+    <dt>SIC confidence</dt>  <dd>{{ "%.0f"|format(event.sic_confidence * 100) }}%</dd>
+    <dt>Scored at</dt>       <dd class="muted">{{ scored_at_fmt }}</dd>
   </dl>
+</div>
 
-  <!-- ── Decision form ── -->
-  <h2>Underwriter Decision</h2>
-  <div class="form-card">
-    <form method="post" action="/review/{{ event.submission_id }}/decide">
+{# ── Decision area ── #}
+{% if status == 'referral_pending' %}
+<div class="section-head">Underwriter decision</div>
+<div class="decision-section">
 
-      <div class="radio-group">
-        <label class="radio-label">
-          <input type="radio" name="choice" value="approve" required>
-          Approve — advance to W3 enrichment
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="choice" value="override">
-          Override — approve with adjusted score and reason
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="choice" value="decline">
-          Decline — reject submission
-        </label>
-      </div>
+  {# Approve #}
+  <details class="decision-panel">
+    <summary class="approve">✓ Approve — advance to W3 enrichment</summary>
+    <div class="decision-form">
+      <form method="post" action="/review/{{ event.submission_id }}/decide">
+        <input type="hidden" name="choice" value="approve">
+        <label class="field-label">Reviewer ID *</label>
+        <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+        <label class="field-label">Notes (optional)</label>
+        <input type="text" name="notes" placeholder="Free-text notes">
+        <div style="margin-top:12px">
+          <button type="submit" class="submit-btn btn-green">Confirm Approve</button>
+        </div>
+      </form>
+    </div>
+  </details>
 
-      <!-- Override fields -->
-      <div class="form-section" id="override-fields">
-        <label class="field-label" for="override_reason">Reason Code</label>
-        <input type="text" id="override_reason" name="reason_code" placeholder="e.g. OVERRIDE_MANUAL">
-        <label class="field-label" for="override_score">Override Score (0–100)</label>
-        <input type="number" id="override_score" name="override_score" min="0" max="100"
-               placeholder="{{ score.total }}">
-      </div>
+  {# Override #}
+  <details class="decision-panel">
+    <summary class="override">~ Override — approve with adjusted score and reason</summary>
+    <div class="decision-form">
+      <form method="post" action="/review/{{ event.submission_id }}/decide">
+        <input type="hidden" name="choice" value="override">
+        <label class="field-label">Reason code *</label>
+        <input type="text" name="reason_code" required placeholder="e.g. OVERRIDE_MANUAL" style="margin-bottom:8px">
+        <label class="field-label">Override score (0–100)</label>
+        <input type="number" name="override_score" min="0" max="100" placeholder="{{ score.total }}" style="margin-bottom:8px">
+        <label class="field-label">Reviewer ID *</label>
+        <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+        <label class="field-label">Notes (optional)</label>
+        <input type="text" name="notes" placeholder="Free-text notes">
+        <div style="margin-top:12px">
+          <button type="submit" class="submit-btn btn-amber">Submit Override</button>
+        </div>
+      </form>
+    </div>
+  </details>
 
-      <!-- Decline fields -->
-      <div class="form-section" id="decline-fields">
-        <label class="field-label" for="decline_reason">Reason Code</label>
-        <input type="text" id="decline_reason" name="reason_code" placeholder="e.g. DECLINE_MANUAL">
-      </div>
+  {# Decline #}
+  <details class="decision-panel">
+    <summary class="decline">✗ Decline — reject submission</summary>
+    <div class="decision-form">
+      <form method="post" action="/review/{{ event.submission_id }}/decide">
+        <input type="hidden" name="choice" value="decline">
+        <label class="field-label">Reason code *</label>
+        <input type="text" name="reason_code" required placeholder="e.g. DECLINE_MANUAL" style="margin-bottom:8px">
+        <label class="field-label">Reviewer ID *</label>
+        <input type="text" name="reviewer_id" required placeholder="your underwriter ID" style="margin-bottom:8px">
+        <label class="field-label">Notes (optional)</label>
+        <input type="text" name="notes" placeholder="Free-text notes">
+        <div style="margin-top:12px">
+          <button type="submit" class="submit-btn btn-red">Confirm Decline</button>
+        </div>
+      </form>
+    </div>
+  </details>
 
-      <!-- Always-visible fields -->
-      <div class="reviewer-field">
-        <label class="field-label" for="reviewer_id">Reviewer ID <span style="color:#cf222e">*</span></label>
-        <input type="text" id="reviewer_id" name="reviewer_id" required placeholder="your underwriter ID">
-        <label class="field-label" for="notes">Notes (optional)</label>
-        <input type="text" id="notes" name="notes" placeholder="Free-text notes for the file">
-      </div>
+</div>
 
-      <button type="submit" class="submit-btn">Submit Decision</button>
-    </form>
+{% elif decision %}
+{# ── Read-only outcome panel ── #}
+<div class="section-head">Decision outcome</div>
+<div class="outcome-panel">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    {% if decision.choice == 'approve' %}<span class="badge badge-green" style="font-size:13px;padding:4px 12px">Approved</span>
+    {% elif decision.choice == 'override' %}<span class="badge badge-amber" style="font-size:13px;padding:4px 12px">Override</span>
+    {% elif decision.choice == 'decline' %}<span class="badge badge-red" style="font-size:13px;padding:4px 12px">Declined</span>
+    {% else %}<span class="badge badge-blue">{{ decision.choice }}</span>{% endif %}
   </div>
+  <dl class="detail-grid">
+    <dt>Reviewer</dt>    <dd>{{ decision.reviewer_id }}</dd>
+    <dt>Reason code</dt> <dd class="mono">{{ decision.reason_code or '—' }}</dd>
+    <dt>Notes</dt>       <dd>{{ decision.notes or '—' }}</dd>
+    <dt>Decided at</dt>  <dd class="muted">{{ decision.decided_at[:16].replace('T',' ') }} UTC</dd>
+  </dl>
+</div>
+{% else %}
+<div style="color:#6b6a65;font-size:13px;padding:12px 0">No decision recorded yet — submission is {{ status }}.</div>
+{% endif %}
 
-  <script>
-    const radios = document.querySelectorAll('input[name="choice"]');
-    const overrideFields = document.getElementById('override-fields');
-    const declineFields  = document.getElementById('decline-fields');
-
-    function updateFields() {
-      const val = document.querySelector('input[name="choice"]:checked')?.value;
-      overrideFields.classList.toggle('visible', val === 'override');
-      declineFields.classList.toggle('visible',  val === 'decline');
-    }
-
-    radios.forEach(r => r.addEventListener('change', updateFields));
-    updateFields();
-  </script>
-
-</body>
-</html>
+{% endblock %}

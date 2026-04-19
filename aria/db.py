@@ -74,13 +74,13 @@ _SAMPLE_SUBMISSIONS = [
         "submission_id": "SUB-2024-0004",
         "acord_fields": {"policy_type": "BOP", "years_in_business": 5},
         "pc_account_id": "PC-10004",
-        "sic_code": "7389",
-        "sic_description": "Services - miscellaneous business services",
-        "sic_confidence": 0.82,       # ambiguous SIC, confidence < 0.90 → HITLRequired
-        "writing_state": "IL",
-        "premises_zip": "60601",
-        "tiv": None,
-        "named_insured": "Apex Business Services LLC",
+        "sic_code": "5571",
+        "sic_description": "Motorcycle dealers",
+        "sic_confidence": 0.93,       # Tier C (40) + GA (+5) + small (+10) = 55 → referral
+        "writing_state": "GA",
+        "premises_zip": "30301",
+        "tiv": 400_000.0,
+        "named_insured": "Apex Cycle & Powersports LLC",
         "created_at": "2024-03-04T08:45:00+00:00",
     },
     {

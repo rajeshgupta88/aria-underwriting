@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+
+{% block content %}
+
+{# ── Integrity banner ── #}
+{% if integrity.score_log.tampered|length == 0 and integrity.decisions.tampered|length == 0 %}
+<div class="banner banner-green">
+  ✓ All {{ totals.scores }} entries verified · No tampering detected
+</div>
+{% else %}
+{% set n_tampered = integrity.score_log.tampered|length + integrity.decisions.tampered|length %}
+<div class="banner banner-red">
+  ⚠ WARNING: {{ n_tampered }} tampered {{ 'entry' if n_tampered == 1 else 'entries' }} detected
+  {% for t in integrity.score_log.tampered %}
+  <div style="margin-top:4px;font-size:12px;font-family:monospace">
+    Score log line {{ t.line }} · submission {{ t.submission_id }} · stored {{ t.stored[:12] }}… ≠ expected {{ t.expected[:12] }}…
+  </div>
+  {% endfor %}
+  {% for t in integrity.decisions.tampered %}
+  <div style="margin-top:4px;font-size:12px;font-family:monospace">
+    Decisions line {{ t.line }} · submission {{ t.submission_id }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Export + section header ── #}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+  <div class="section-head" style="margin:0;border:none">Score log</div>
+  <a href="/audit/export" style="font-size:12px;padding:5px 12px;background:#FFFFFF;
+     border:1px solid rgba(0,0,0,0.12);border-radius:6px;color:#3C3489;font-weight:500">
+    ↓ Export for DOI exam
+  </a>
+</div>
+
+{# ── Score log table ── #}
+<div class="table-wrap" style="margin-bottom:24px">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Hash</th>
+        <th>Named insured</th>
+        <th>SIC</th>
+        <th>State</th>
+        <th>Score</th>
+        <th>Routing</th>
+        <th>Scored at</th>
+        <th style="text-align:center">✓</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in score_rows %}
+    {% set row_bg = '#E1F5EE' if row.routing == 'auto_pass' else ('#FAEEDA' if row.routing == 'referral' else ('#FCEBEB' if row.routing == 'auto_decline' else 'transparent')) %}
+    <tr style="background:{{ row_bg }}">
+      <td class="mono" style="color:#6b6a65">{{ row.hash_short }}</td>
+      <td style="font-weight:500">{{ row.named_insured }}</td>
+      <td class="mono">{{ row.sic_code }}</td>
+      <td>{{ row.writing_state }}</td>
+      <td>
+        <span style="font-weight:600;color:{{ row.score_color }}">{{ row.score_total }}</span>
+      </td>
+      <td>
+        {% if row.routing == 'auto_pass' %}<span class="badge badge-green">Auto-passed</span>
+        {% elif row.routing == 'referral' %}<span class="badge badge-amber">Referral</span>
+        {% elif row.routing == 'auto_decline' %}<span class="badge badge-red">Auto-declined</span>
+        {% else %}<span class="badge badge-blue">{{ row.routing }}</span>{% endif %}
+      </td>
+      <td class="muted" style="font-size:12px">{{ row.scored_at_fmt }}</td>
+      <td style="text-align:center">
+        {% if row.tampered %}
+          <span style="color:#E24B4A;font-weight:700">✗</span>
+        {% else %}
+          <span style="color:#1D9E75">✓</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" style="text-align:center;color:#6b6a65;padding:24px">No score entries yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Decisions table ── #}
+<div class="section-head">Decisions</div>
+{% if decision_rows %}
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Hash</th>
+        <th>Submission</th>
+        <th>Choice</th>
+        <th>Reviewer</th>
+        <th>Reason code</th>
+        <th>Decided at</th>
+        <th style="text-align:center">✓</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in decision_rows %}
+    <tr>
+      <td class="mono" style="color:#6b6a65">{{ row.hash_short }}</td>
+      <td><a href="/review/{{ row.submission_id }}" style="color:#3C3489">{{ row.submission_id }}</a></td>
+      <td>
+        {% if row.choice == 'approve' %}<span class="badge badge-green">Approve</span>
+        {% elif row.choice == 'override' %}<span class="badge badge-amber">Override</span>
+        {% elif row.choice == 'decline' %}<span class="badge badge-red">Decline</span>
+        {% else %}<span class="badge badge-blue">{{ row.choice }}</span>{% endif %}
+      </td>
+      <td>{{ row.reviewer_id }}</td>
+      <td class="mono muted">{{ row.reason_code or '—' }}</td>
+      <td class="muted" style="font-size:12px">{{ row.decided_at_fmt }}</td>
+      <td style="text-align:center">
+        {% if row.tampered %}
+          <span style="color:#E24B4A;font-weight:700">✗</span>
+        {% else %}
+          <span style="color:#1D9E75">✓</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div style="color:#6b6a65;font-size:13px;padding:12px 0">No decisions recorded yet.</div>
+{% endif %}
+
+{# ── Footer ── #}
+<div class="mono muted" style="margin-top:20px;font-size:11px">
+  {{ totals.scores }} score {{ 'entry' if totals.scores == 1 else 'entries' }} ·
+  {{ totals.decisions }} {{ 'decision' if totals.decisions == 1 else 'decisions' }} ·
+  append-only · sha256 per event
+</div>
+
+{% endblock %}

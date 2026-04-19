@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Insights{% endblock %}
+
+{% block content %}
+
+{# ── Metric row ── #}
+<div class="metric-grid">
+  <div class="metric-card">
+    <div class="metric-value" style="color:#1D9E75">{{ metrics.stp_rate }}%</div>
+    <div class="metric-label">STP rate (straight-through)</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value">{{ metrics.avg_score }}</div>
+    <div class="metric-label">Avg composite score</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value" style="color:#378ADD">{{ metrics.uw_time_saved }}</div>
+    <div class="metric-label">UW time saved<br><span style="font-size:10px;color:#6b6a65">vs. manual (8 min/sub)</span></div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value" style="color:#EF9F27">{{ metrics.override_rate }}</div>
+    <div class="metric-label">Override rate</div>
+  </div>
+</div>
+
+{# ── Insight cards grid ── #}
+<div class="insight-grid">
+
+  {# Card 1 — Decline drivers #}
+  <div class="insight-card">
+    <div class="insight-title">Decline drivers</div>
+    {% if decline_drivers %}
+    {% for item in decline_drivers %}
+    <div class="bar-row">
+      <span class="bar-label">{{ item.label }}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{{ ((item.count / max_decline_count) * 100)|int if max_decline_count > 0 else 0 }}%;background:#7F77DD"></div>
+      </div>
+      <span class="bar-count">{{ item.count }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="muted" style="font-size:12px">No auto-decline data yet.</div>
+    {% endif %}
+  </div>
+
+  {# Card 2 — SIC volume #}
+  <div class="insight-card">
+    <div class="insight-title">SIC volume (top 5)</div>
+    {% if sic_volume %}
+    {% for item in sic_volume %}
+    <div class="bar-row">
+      <span class="bar-label mono">{{ item.sic_code }} <span style="font-family:system-ui;font-size:11px">Tier {{ item.tier }}</span></span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{{ ((item.count / max_sic_count) * 100)|int if max_sic_count > 0 else 0 }}%;background:{{ item.bar_color }}"></div>
+      </div>
+      <span class="bar-count">{{ item.count }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="muted" style="font-size:12px">No submission data yet.</div>
+    {% endif %}
+  </div>
+
+  {# Card 3 — Referral SLA status #}
+  <div class="insight-card">
+    <div class="insight-title">Referral SLA status</div>
+    {% if referral_sla %}
+    {% for item in referral_sla %}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+      <span style="color:{{ item.sla_color }};font-size:8px;flex-shrink:0">●</span>
+      <span style="flex:1;font-size:13px">
+        <a href="/review/{{ item.id }}" style="color:#3C3489">{{ item.named_insured }}</a>
+      </span>
+      <span style="font-size:11px;color:{{ item.sla_color }};font-weight:600;white-space:nowrap">{{ item.sla_label }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="muted" style="font-size:12px">No referrals pending.</div>
+    {% endif %}
+  </div>
+
+  {# Card 4 — Governance health #}
+  <div class="insight-card">
+    <div class="insight-title">Governance health</div>
+    <div class="kv-grid">
+      <span class="kv-key">Audit integrity</span>
+      <span class="kv-val">
+        {% if governance.audit_clean %}
+          <span style="color:#1D9E75;font-weight:600">100% verified</span>
+        {% else %}
+          <span style="color:#E24B4A;font-weight:600">Issues detected</span>
+        {% endif %}
+      </span>
+
+      <span class="kv-key">HITL SLA</span>
+      <span class="kv-val">{{ governance.sla_on_track }}/{{ governance.sla_total }} on track</span>
+
+      <span class="kv-key">Override rate</span>
+      <span class="kv-val">
+        {% if governance.override_rate is not none %}
+          {% if governance.override_rate > 25 %}
+            <span style="color:#EF9F27;font-weight:600">{{ governance.override_rate }}%</span>
+          {% else %}
+            {{ governance.override_rate }}%
+          {% endif %}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </span>
+
+      <span class="kv-key">Decisions logged</span>
+      <span class="kv-val">{{ governance.decisions_logged }}</span>
+
+      <span class="kv-key">LLM provider</span>
+      <span class="kv-val mono">{{ governance.llm_provider }} · {{ governance.llm_model[:16] }}</span>
+
+      <span class="kv-key">API key</span>
+      <span class="kv-val">
+        {% if governance.api_key_set %}
+          <span style="color:#1D9E75;font-weight:600">Configured</span>
+        {% else %}
+          <span style="color:#EF9F27;font-weight:600">Not set</span>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
