@@ -48,7 +48,7 @@ class SubmissionRouter:
         self._db.update_status(event.submission_id, "aria_scored")
 
         if score.routing == "auto_pass":
-            await self._advance_to_w3(event, score)
+            await self.advance_to_w3(event, score)
         elif score.routing == "referral":
             await self._fire_hitl(event, score)
         else:
@@ -62,7 +62,7 @@ class SubmissionRouter:
 
     # ── Downstream handlers ───────────────────────────────────────────────────
 
-    async def _advance_to_w3(self, event: SubmissionEvent, score: CompositeScore) -> None:
+    async def advance_to_w3(self, event: SubmissionEvent, score: CompositeScore) -> None:
         self._db.update_status(event.submission_id, "w3_triggered")
         payload = {
             "submission_id": event.submission_id,
@@ -89,13 +89,18 @@ class SubmissionRouter:
     async def _fire_hitl(self, event: SubmissionEvent, score: CompositeScore) -> None:
         self._db.update_status(event.submission_id, "referral_pending")
         if self._hitl_mode == "terminal":
-            from hitl.card import render_hitl_card
-            render_hitl_card(event, score)
+            import asyncio
+            from hitl.card import render_and_prompt
+            decision = await asyncio.to_thread(
+                render_and_prompt, score, event, self._audit, self._db
+            )
+            # If approved/overridden, advance to W3
+            if decision.choice in ("approve", "override"):
+                await self.advance_to_w3(event, score)
         else:
-            # browser mode: card data is served via GET /submissions/{id}
             logger.info(
-                "HITL browser card queued for %s (score=%d)",
-                event.submission_id, score.total,
+                "HITL browser card queued for %s (score=%d) — visit /review/%s",
+                event.submission_id, score.total, event.submission_id,
             )
 
     async def _send_decline(self, event: SubmissionEvent, score: CompositeScore) -> None:

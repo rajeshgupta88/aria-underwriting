@@ -23,10 +23,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("aria.server")
 
-# ── App state (populated in lifespan) ────────────────────────────────────────
-
-_state: dict = {}
-
 VERSION = "0.1.0"
 
 
@@ -35,22 +31,26 @@ async def lifespan(app: FastAPI):
     port = os.getenv("ARIA_PORT", "8001")
     hitl_mode = os.getenv("HITL_MODE", "terminal")
 
-    db = SubmissionDB(os.getenv("SCORE_LOG_PATH", "data/submissions.db").replace("score_log.jsonl", "submissions.db"))
+    db = SubmissionDB("data/submissions.db")
     audit = AuditLogger(
         score_log_path=os.getenv("SCORE_LOG_PATH", "data/score_log.jsonl"),
         decisions_path=os.getenv("DECISIONS_PATH", "data/decisions.jsonl"),
     )
-    router = SubmissionRouter(db=db, audit=audit, hitl_mode=hitl_mode)
+    sub_router = SubmissionRouter(db=db, audit=audit, hitl_mode=hitl_mode)
 
-    _state["db"] = db
-    _state["audit"] = audit
-    _state["router"] = router
-    _state["hitl_mode"] = hitl_mode
+    # Store on app.state so the review router can access without circular imports
+    app.state.db = db
+    app.state.audit = audit
+    app.state.router = sub_router
+    app.state.hitl_mode = hitl_mode
 
     llm_info = llm_status()
     logger.info("Aria — Appetite & Risk Intelligence Agent running on port %s", port)
-    logger.info("LLM provider: %s  model: %s  key_set: %s",
-                llm_info["provider"], llm_info["model"], llm_info["api_key_set"])
+    logger.info(
+        "LLM provider: %s  model: %s  key_set: %s",
+        llm_info["provider"], llm_info["model"], llm_info["api_key_set"],
+    )
+    logger.info("HITL mode: %s", hitl_mode)
 
     yield
 
@@ -59,12 +59,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Aria", version=VERSION, lifespan=lifespan)
 
+# Mount the browser HITL review router
+from hitl.review import router as review_router  # noqa: E402 — after app creation
+app.include_router(review_router)
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/score")
 async def score_submission(event: SubmissionEvent):
-    result = await _state["router"].route(event)
+    result = await app.state.router.route(event)
     return result
 
 
@@ -73,16 +77,16 @@ async def list_submissions(
     status: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
 ):
-    rows = _state["db"].list_submissions(status=status, limit=limit)
+    rows = app.state.db.list_submissions(status=status, limit=limit)
     return {"count": len(rows), "submissions": rows}
 
 
 @app.get("/submissions/{submission_id}")
 async def get_submission(submission_id: str):
-    row = _state["db"].get_submission(submission_id)
+    row = app.state.db.get_submission(submission_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Submission {submission_id!r} not found")
-    scores = _state["audit"].read_scores(submission_id=submission_id)
+    scores = app.state.audit.read_scores(submission_id=submission_id)
     latest_score = scores[-1] if scores else None
     return {"submission": row, "latest_score": latest_score}
 
@@ -92,7 +96,7 @@ async def health():
     return {
         "status": "ok",
         "version": VERSION,
-        "hitl_mode": _state.get("hitl_mode", "terminal"),
+        "hitl_mode": app.state.hitl_mode,
         "llm": llm_status(),
     }
 
@@ -108,5 +112,5 @@ async def test_submit(n: int):
     event = SubmissionEvent(
         **{**raw, "created_at": datetime.now(timezone.utc)},
     )
-    result = await _state["router"].route(event)
+    result = await app.state.router.route(event)
     return {"sample_index": n, "named_insured": event.named_insured, **result}
