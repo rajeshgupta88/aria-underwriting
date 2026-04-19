@@ -76,6 +76,43 @@ app.include_router(_review_router)
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
 
+def _routing_badge(status: str, routing: str | None, decision: dict | None) -> dict:
+    """Return display info dict {cls, icon, label} for a submission's effective state.
+
+    Overridden submissions get a distinct badge class so the UW can see at a glance
+    that the final outcome differs from Aria's automated decision.
+    """
+    if decision:
+        choice = decision.get("choice", "")
+        notes = decision.get("notes") or ""
+        if "Override of auto_pass" in notes:
+            return {"cls": "badge-override-red",   "icon": "↓", "label": "Override · Declined"}
+        if "Override of auto_decline" in notes:
+            return {"cls": "badge-override-green", "icon": "↑", "label": "Override · Approved"}
+        # HITLRequired — no original routing, fully manual
+        if routing is None:
+            if choice == "decline":
+                return {"cls": "badge-red",   "icon": "✗", "label": "Manual Decline"}
+            return {"cls": "badge-green", "icon": "✓", "label": "Manual Approve"}
+        # Referral decided by UW
+        if choice == "decline":
+            return {"cls": "badge-red",   "icon": "✗", "label": "UW Declined"}
+        return {"cls": "badge-green", "icon": "✓", "label": "UW Approved"}
+
+    # No decision yet — show automated routing
+    if routing == "auto_pass":
+        return {"cls": "badge-green",  "icon": "", "label": "Auto-passed"}
+    if routing == "auto_decline":
+        return {"cls": "badge-red",    "icon": "", "label": "Auto-declined"}
+    if routing == "referral":
+        if status in ("w3_triggered", "w3_pending_retry"):
+            return {"cls": "badge-green", "icon": "✓", "label": "UW Approved"}
+        return {"cls": "badge-amber", "icon": "", "label": "Referral pending"}
+    if status == "referral_pending":   # HITLRequired — no score computed
+        return {"cls": "badge-purple", "icon": "⚠", "label": "HITL Required"}
+    return {"cls": "badge-blue", "icon": "", "label": status}
+
+
 def _nav_counts(db: SubmissionDB) -> dict:
     count = len(db.list_submissions(status="referral_pending", limit=200))
     return {"referral_pending": count}
@@ -105,6 +142,7 @@ def _base_ctx(request: Request, page_title: str, current_route: str) -> dict:
 def _build_queue_rows(db: SubmissionDB, audit: AuditLogger, filter_val: str) -> list[dict]:
     subs = db.list_submissions(limit=200)
     all_scores = audit.read_scores()
+    all_decisions = audit.read_decisions()
 
     score_by_id: dict = {}
     for s in all_scores:
@@ -112,19 +150,39 @@ def _build_queue_rows(db: SubmissionDB, audit: AuditLogger, filter_val: str) -> 
         if sid:
             score_by_id[sid] = s
 
+    # Latest decision per submission
+    decision_by_id: dict = {}
+    for d in all_decisions:
+        sid = d.get("submission_id")
+        if sid:
+            decision_by_id[sid] = d
+
     rows = []
     for sub in subs:
         score = score_by_id.get(sub["id"])
+        decision = decision_by_id.get(sub["id"])
         payload = json.loads(sub["raw_payload"])
         total = score["total"] if score else None
         routing = score["routing"] if score else None
         status = sub["status"]
 
+        badge = _routing_badge(status, routing, decision)
+
+        # Filter logic — overridden auto_pass submissions count as "declined" for the filter
+        effective_declined = (
+            status == "declined"
+            or routing == "auto_decline"
+            or (decision and "Override of auto_pass" in (decision.get("notes") or ""))
+        )
+        effective_passed = (
+            routing == "auto_pass"
+            and not (decision and "Override of auto_pass" in (decision.get("notes") or ""))
+        )
         if filter_val == "referral" and not (routing == "referral" or status == "referral_pending"):
             continue
-        if filter_val == "pass" and routing != "auto_pass":
+        if filter_val == "pass" and not effective_passed:
             continue
-        if filter_val == "declined" and routing != "auto_decline" and status != "declined":
+        if filter_val == "declined" and not effective_declined:
             continue
 
         scored_at_raw = score["scored_at"] if score else None
@@ -140,6 +198,7 @@ def _build_queue_rows(db: SubmissionDB, audit: AuditLogger, filter_val: str) -> 
             "score_total": total,
             "score_color": _score_color(total),
             "scored_at": scored_at_raw[:16].replace("T", " ") if scored_at_raw else None,
+            "badge": badge,
         })
     return rows
 

@@ -9,21 +9,10 @@
     <a href="/" style="font-size:12px;color:#6b6a65">← Back to queue</a>
     <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
       <span style="font-size:17px;font-weight:700;color:#1a1a18">{{ event.named_insured }}</span>
-      {% if hitl_required %}
-        <span class="badge badge-purple">HITL Required</span>
-      {% elif status == 'declined' and decision %}
-        <span class="badge badge-red">Declined</span>
-      {% elif status == 'declined' %}
-        <span class="badge badge-red">Auto-declined</span>
-      {% elif score and score.routing == 'auto_pass' %}
-        <span class="badge badge-green">Auto-passed</span>
-      {% elif score and score.routing == 'referral' and status == 'referral_pending' %}
-        <span class="badge badge-amber">Referral pending</span>
-      {% elif score and score.routing == 'referral' and status in ['w3_triggered','w3_pending_retry'] %}
-        <span class="badge badge-green">UW approved</span>
-      {% else %}
-        <span class="badge badge-blue">{{ status }}</span>
-      {% endif %}
+      <span class="badge {{ routing_badge.cls }}">
+        {%- if routing_badge.icon %}{{ routing_badge.icon }}&nbsp;{%- endif -%}
+        {{ routing_badge.label }}
+      </span>
     </div>
     <div style="font-size:12px;color:#6b6a65;margin-top:3px">{{ event.submission_id }}</div>
   </div>
@@ -284,13 +273,10 @@
 <div class="section-head">Decision outcome</div>
 <div class="outcome-panel">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-    {% if decision.choice == 'approve' %}<span class="badge badge-green" style="font-size:13px;padding:4px 12px">Approved</span>
-    {% elif decision.choice == 'override' %}<span class="badge badge-amber" style="font-size:13px;padding:4px 12px">Override</span>
-    {% elif decision.choice == 'decline' %}<span class="badge badge-red" style="font-size:13px;padding:4px 12px">Declined</span>
-    {% else %}<span class="badge badge-blue">{{ decision.choice }}</span>{% endif %}
-    {% if 'Override of auto_pass' in (decision.notes or '') or 'Override of auto_decline' in (decision.notes or '') %}
-    <span class="badge badge-purple" style="font-size:11px">Automated override</span>
-    {% endif %}
+    <span class="badge {{ routing_badge.cls }}" style="font-size:13px;padding:4px 12px">
+      {%- if routing_badge.icon %}{{ routing_badge.icon }}&nbsp;{%- endif -%}
+      {{ routing_badge.label }}
+    </span>
   </div>
   <dl class="detail-grid">
     <dt>Reviewer</dt>      <dd>{{ decision.reviewer_id }}</dd>

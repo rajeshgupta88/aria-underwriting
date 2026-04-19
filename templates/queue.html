@@ -79,23 +79,10 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         <td>
-          {% if row.status == 'declined' %}
-            <span class="badge badge-red">Declined</span>
-          {% elif row.routing == 'auto_pass' %}
-            <span class="badge badge-green">Auto-passed</span>
-          {% elif row.routing == 'auto_decline' %}
-            <span class="badge badge-red">Auto-declined</span>
-          {% elif row.routing == 'referral' and row.status == 'referral_pending' %}
-            <span class="badge badge-amber">Referral</span>
-          {% elif row.routing == 'referral' and row.status in ['w3_triggered','w3_pending_retry'] %}
-            <span class="badge badge-green">UW approved</span>
-          {% elif row.status == 'referral_pending' and row.routing is none %}
-            <span class="badge badge-purple">HITL Required</span>
-          {% elif row.status == 'aria_pending' or row.status == 'aria_scored' %}
-            <span class="badge badge-blue">Processing</span>
-          {% else %}
-            <span class="badge badge-blue">{{ row.status }}</span>
-          {% endif %}
+          <span class="badge {{ row.badge.cls }}">
+            {%- if row.badge.icon %}{{ row.badge.icon }}&nbsp;{%- endif -%}
+            {{ row.badge.label }}
+          </span>
         </td>
         <td class="muted" style="font-size:12px">{{ row.scored_at or '—' }}</td>
       </tr>

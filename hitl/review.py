@@ -41,6 +41,36 @@ REASON_CODES = [
 ]
 
 
+def _routing_badge(status: str, routing: str | None, decision: dict | None) -> dict:
+    """Mirrors aria/server.py — same logic, kept here to avoid circular imports."""
+    if decision:
+        choice = decision.get("choice", "")
+        notes = decision.get("notes") or ""
+        if "Override of auto_pass" in notes:
+            return {"cls": "badge-override-red",   "icon": "↓", "label": "Override · Declined"}
+        if "Override of auto_decline" in notes:
+            return {"cls": "badge-override-green", "icon": "↑", "label": "Override · Approved"}
+        if routing is None:
+            if choice == "decline":
+                return {"cls": "badge-red",   "icon": "✗", "label": "Manual Decline"}
+            return {"cls": "badge-green", "icon": "✓", "label": "Manual Approve"}
+        if choice == "decline":
+            return {"cls": "badge-red",   "icon": "✗", "label": "UW Declined"}
+        return {"cls": "badge-green", "icon": "✓", "label": "UW Approved"}
+
+    if routing == "auto_pass":
+        return {"cls": "badge-green",  "icon": "", "label": "Auto-passed"}
+    if routing == "auto_decline":
+        return {"cls": "badge-red",    "icon": "", "label": "Auto-declined"}
+    if routing == "referral":
+        if status in ("w3_triggered", "w3_pending_retry"):
+            return {"cls": "badge-green", "icon": "✓", "label": "UW Approved"}
+        return {"cls": "badge-amber", "icon": "", "label": "Referral pending"}
+    if status == "referral_pending":
+        return {"cls": "badge-purple", "icon": "⚠", "label": "HITL Required"}
+    return {"cls": "badge-blue", "icon": "", "label": status}
+
+
 def _load_event(submission_id: str, request: Request):
     db = request.app.state.db
     row = db.get_submission(submission_id)
@@ -120,6 +150,8 @@ async def review_page(submission_id: str, request: Request):
 
     decisions = audit.read_decisions(submission_id=submission_id)
     latest_decision = decisions[-1] if decisions else None
+    routing = score.routing if score else None
+    badge = _routing_badge(status, routing, latest_decision)
 
     # SLA — use score.scored_at when available, else submission created_at
     if score is not None:
@@ -155,6 +187,7 @@ async def review_page(submission_id: str, request: Request):
         "hitl_required": hitl_required,
         "can_override_auto": can_override_auto,
         "reason_codes": REASON_CODES,
+        "routing_badge": badge,
         # score colors (safe to call even when score is None via template checks)
         "sic_color":       _score_color(score.sic.base_score) if score else "#6b6a65",
         "state_color":     _sign_color(score.state.modifier)  if score else "#6b6a65",
